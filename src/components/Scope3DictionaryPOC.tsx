@@ -374,7 +374,53 @@ const normalizeSupplierName = (supplier: string): string => {
     testMatched: testResults.filter(r => r.matchedEntry).length,
     testTotal: testResults.length
   };
+// キーワード抽出関数（高精度版）
+const extractKeywordsFromText = (text: string): string[] => {
+  if (!text) return [];
+  
+  // 1. 正規化
+  const normalized = text
+    .toString()
+    .replace(/\s+/g, '') // スペース除去
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)); // 全角→半角
+  
+  const keywords: string[] = [];
+  
+  // 2. 日本語キーワード抽出
+  const japaneseWords = normalized.match(/[ァ-ヶー]{2,}|[あ-ん]{2,}|[一-龯]{1,}/g) || [];
+  keywords.push(...japaneseWords.filter(word => 
+    word.length >= 2 && 
+    word.length <= 8 &&
+    !['月分', '年分', '利用', '料金', '費用'].includes(word) // 汎用的すぎる単語は除外
+  ));
+  
+  // 3. 英数字キーワード抽出
+  const alphanumericWords = normalized.match(/[a-zA-Z0-9]{2,}/g) || [];
+  keywords.push(...alphanumericWords.filter(word => 
+    word.length >= 2 && 
+    word.length <= 12 && 
+    !/^\d+$/.test(word) && // 数字のみは除外
+    !['LTD', 'INC', 'CO'].includes(word.toUpperCase()) // 法人格は除外
+  ));
+  
+  return [...new Set(keywords)].slice(0, 8); // 重複除去、最大8個
+};
 
+// 仕入先名正規化関数（改良版）
+const normalizeSupplierName = (supplier: string): string => {
+  if (!supplier) return '';
+  
+  let normalized = supplier
+    .toString()
+    .replace(/\(.*?\)/g, '') // 括弧内削除
+    .replace(/（.*?）/g, '') // 全角括弧内削除
+    .replace(/(株式会社|㈱|有限会社|㈲|合同会社|LLC|Inc|Corp|Ltd|Co\.)/gi, '') // 法人格削除
+    .replace(/[引落]/g, '') // 引落等削除
+    .replace(/\s+/g, '') // スペース削除
+    .trim();
+  
+  return normalized.length >= 2 ? normalized : '';
+};
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* ヘッダー */}
