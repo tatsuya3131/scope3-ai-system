@@ -87,48 +87,231 @@ const Scope3DictionaryPOC = () => {
   }, []);
 
   // デモ学習機能
-  const simulateLearning = async () => {
-    setIsLearning(true);
-    setLearningProgress(0);
-    setCurrentStep('ファイル読み込み中...');
+// 実際の学習データから辞書生成（修正版）
+const learnFromData = async () => {
+  if (!learningFile) {
+    alert('学習ファイルを選択してください');
+    return;
+  }
 
-    const steps = [
-      'ファイル読み込み中...',
-      'データ構造解析中...',
-      'キーワード抽出中...',
-      '仕入先パターン分析中...',
-      '金額レンジ計算中...',
-      '信頼度スコア算出中...',
-      '辞書エントリ生成中...',
-      '✅ 学習完了: 新しい辞書エントリを生成しました'
-    ];
+  setIsLearning(true);
+  setLearningProgress(0);
+  setCurrentStep('ファイル読み込み中...');
 
-    for (let i = 0; i < steps.length; i++) {
-      setCurrentStep(steps[i]);
-      setLearningProgress((i + 1) * 12.5);
-      await new Promise(resolve => setTimeout(resolve, 800));
-    }
+  try {
+    // ファイル読み込み
+    const fileData = await learningFile.arrayBuffer();
+    
+    setLearningProgress(10);
+    setCurrentStep('Excelファイル解析中...');
 
-    // 新しい辞書エントリを追加
-    const newEntries: DictionaryEntry[] = [
-      {
-        id: Date.now().toString(),
-        keywords: ['ネットワーク', '監視', 'NTT', 'コミュニケーションズ'],
-        category: 'その他の通信サービス',
-        categoryCode: '731908',
-        confidence: 0.87,
-        source: 'learned',
-        frequency: 67,
-        minAmount: 80000,
-        maxAmount: 300000,
-        supplierHints: ['NTT']
+    // SheetJSを使用してExcel解析
+    if (typeof window !== 'undefined' && (window as any).XLSX) {
+      const XLSX = (window as any).XLSX;
+      const workbook = XLSX.read(fileData);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+      setLearningProgress(25);
+      setCurrentStep(`データ解析中... (${rawData.length}行)`);
+
+      // ヘッダーを除外してデータを取得（品目名、仕入先名、金額、排出原単位）
+      const learningData = rawData.slice(1).filter((row: any) => 
+        row && row.length >= 4 && row[3] && row[3].toString().includes('環境省DB')
+      );
+      
+      setLearningDataCount(learningData.length);
+      console.log(`有効な学習データ: ${learningData.length}件`);
+
+      if (learningData.length === 0) {
+        throw new Error('環境省DB排出原単位が設定されたデータが見つかりません。');
       }
-    ];
 
-    setDictionary(prev => [...prev, ...newEntries]);
-    setLearningDataCount(11680);
+      setLearningProgress(50);
+      setCurrentStep('カテゴリ別グループ化中...');
+
+      // カテゴリ別にデータをグループ化
+      const categoryGroups: { [key: string]: any[] } = {};
+      
+      learningData.forEach((row: any, index: number) => {
+        try {
+          const itemName = row[0]?.toString() || '';
+          const supplier = row[1]?.toString() || '';
+          const amount = row[2] ? parseFloat(row[2].toString()) : 0;
+          const emissionUnit = row[3]?.toString() || '';
+          
+          if (itemName && supplier && emissionUnit) {
+            if (!categoryGroups[emissionUnit]) {
+              categoryGroups[emissionUnit] = [];
+            }
+            categoryGroups[emissionUnit].push({ 
+              itemName, 
+              supplier, 
+              amount, 
+              index: index + 2 
+            });
+          }
+        } catch (error) {
+          console.warn(`行${index + 2}でエラー:`, error);
+        }
+      });
+
+      const categoryCount = Object.keys(categoryGroups).length;
+      console.log(`カテゴリ数: ${categoryCount}`);
+
+      setLearningProgress(75);
+      setCurrentStep(`辞書生成中... (${categoryCount}カテゴリ)`);
+
+      // 各カテゴリからキーワードパターンを抽出
+      const newEntries: DictionaryEntry[] = [];
+      let entryId = Date.now();
+
+      for (const [emissionUnit, items] of Object.entries(categoryGroups)) {
+        if (items.length < 2) continue; // 最低2件以上で学習
+
+        try {
+          // 1. キーワード抽出
+          const allKeywords: string[] = [];
+          const suppliers: string[] = [];
+          const amounts: number[] = [];
+
+          items.forEach(item => {
+            // 品目名からキーワード抽出
+            const itemKeywords = extractKeywordsFromText(item.itemName);
+            allKeywords.push(...itemKeywords);
+            
+            // 仕入先名を正規化
+            const normalizedSupplier = normalizeSupplierName(item.supplier);
+            if (normalizedSupplier) suppliers.push(normalizedSupplier);
+            
+            // 金額収集
+            if (item.amount > 0) amounts.push(item.amount);
+          });
+
+          // 2. 頻出キーワードを抽出
+          const keywordFreq: { [key: string]: number } = {};
+          allKeywords.forEach(keyword => {
+            if (keyword && keyword.length >= 2) {
+              keywordFreq[keyword] = (keywordFreq[keyword] || 0) + 1;
+            }
+          });
+
+          // 3. 重要キーワードを選択（頻度ベース）
+          const minFreq = Math.max(1, Math.floor(items.length * 0.1)); // 最低10%の頻度
+          const significantKeywords = Object.entries(keywordFreq)
+            .filter(([_, freq]) => freq >= minFreq)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6) // 最大6個
+            .map(([keyword]) => keyword);
+
+          if (significantKeywords.length > 0) {
+            // 4. カテゴリ名とコード抽出
+            const categoryMatch = emissionUnit.match(/(\d{6})\s+(.+?)(?:\s*$)/);
+            const categoryCode = categoryMatch ? categoryMatch[1] : '';
+            const categoryName = categoryMatch ? 
+              categoryMatch[2].trim() : 
+              emissionUnit.replace('環境省DB 5産連表', '').trim();
+
+            // 5. 金額レンジ計算
+            amounts.sort((a, b) => a - b);
+            const minAmount = amounts.length > 0 ? amounts[0] : undefined;
+            const maxAmount = amounts.length > 0 ? amounts[amounts.length - 1] : undefined;
+
+            // 6. 信頼度計算（データ件数ベース）
+            const confidence = Math.min(0.95, 
+              Math.max(0.7, 0.7 + (Math.log10(items.length + 1) / 10))
+            );
+
+            newEntries.push({
+              id: (entryId++).toString(),
+              keywords: significantKeywords,
+              category: categoryName,
+              categoryCode,
+              confidence,
+              source: 'learned',
+              frequency: items.length,
+              minAmount,
+              maxAmount,
+              supplierHints: [...new Set(suppliers)].slice(0, 4)
+            });
+          }
+        } catch (error) {
+          console.warn(`カテゴリ ${emissionUnit} の処理でエラー:`, error);
+        }
+      }
+
+      setLearningProgress(90);
+      setCurrentStep('辞書統合中...');
+
+      // 既存辞書と統合
+      setDictionary(prev => [...prev, ...newEntries]);
+      
+      setLearningProgress(100);
+      setCurrentStep(`✅ 学習完了: ${newEntries.length}個の辞書エントリを生成しました`);
+      
+      console.log(`学習完了: ${newEntries.length}個のエントリを生成`);
+      console.log('生成されたエントリ例:', newEntries.slice(0, 3));
+      
+    } else {
+      throw new Error('Excelライブラリが読み込まれていません。ページを再読み込みしてください。');
+    }
+    
+  } catch (error: any) {
+    console.error('Learning error:', error);
+    setCurrentStep(`❌ エラー: ${error.message}`);
+    alert(`学習エラー: ${error.message}`);
+  } finally {
     setIsLearning(false);
-  };
+  }
+};
+
+// キーワード抽出関数（高精度版）
+const extractKeywordsFromText = (text: string): string[] => {
+  if (!text) return [];
+  
+  // 1. 正規化
+  const normalized = text
+    .toString()
+    .replace(/\s+/g, '') // スペース除去
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)); // 全角→半角
+  
+  const keywords: string[] = [];
+  
+  // 2. 日本語キーワード抽出
+  const japaneseWords = normalized.match(/[ァ-ヶー]{2,}|[あ-ん]{2,}|[一-龯]{1,}/g) || [];
+  keywords.push(...japaneseWords.filter(word => 
+    word.length >= 2 && 
+    word.length <= 8 &&
+    !['月分', '年分', '利用', '料金', '費用'].includes(word) // 汎用的すぎる単語は除外
+  ));
+  
+  // 3. 英数字キーワード抽出
+  const alphanumericWords = normalized.match(/[a-zA-Z0-9]{2,}/g) || [];
+  keywords.push(...alphanumericWords.filter(word => 
+    word.length >= 2 && 
+    word.length <= 12 && 
+    !/^\d+$/.test(word) && // 数字のみは除外
+    !['LTD', 'INC', 'CO'].includes(word.toUpperCase()) // 法人格は除外
+  ));
+  
+  return [...new Set(keywords)].slice(0, 8); // 重複除去、最大8個
+};
+
+// 仕入先名正規化関数（改良版）
+const normalizeSupplierName = (supplier: string): string => {
+  if (!supplier) return '';
+  
+  let normalized = supplier
+    .toString()
+    .replace(/\(.*?\)/g, '') // 括弧内削除
+    .replace(/（.*?）/g, '') // 全角括弧内削除
+    .replace(/(株式会社|㈱|有限会社|㈲|合同会社|LLC|Inc|Corp|Ltd|Co\.)/gi, '') // 法人格削除
+    .replace(/[引落]/g, '') // 引落等削除
+    .replace(/\s+/g, '') // スペース削除
+    .trim();
+  
+  return normalized.length >= 2 ? normalized : '';
+};
 
   // 手動辞書エントリ追加
   const addDictionaryEntry = () => {
