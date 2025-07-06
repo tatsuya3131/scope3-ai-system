@@ -156,11 +156,11 @@ const Scope3DictionaryPOC = () => {
       setLearningProgress(10);
       setCurrentStep('Excelファイル解析中...');
       
-      const workbook = window.XLSX.read(fileData);
+      const workbook = (window as any).XLSX.read(fileData);
       console.log('ワークブック読み込み完了:', workbook.SheetNames);
       
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rawData = window.XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      const rawData = (window as any).XLSX.utils.sheet_to_json(sheet, { header: 1 });
       
       setLearningProgress(15);
       setCurrentStep(`データ検証中... (${rawData.length}行)`);
