@@ -490,7 +490,7 @@ const normalizeSupplierName = (supplier: string): string => {
                   </div>
 
                   <button
-                    onClick={simulateLearning}
+                    onClick={learnFromData}
                     disabled={isLearning}
                     className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-6 rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-400 transition-all"
                   >
