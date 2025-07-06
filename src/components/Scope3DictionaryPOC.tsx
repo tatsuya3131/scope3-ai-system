@@ -1,5 +1,6 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { Upload, Download, Brain, Database, Search, Plus, Trash2, Edit3, CheckCircle, AlertTriangle, BarChart3, FileText, Zap } from 'lucide-react';
+'use client';
+import React, { useState, useEffect } from 'react';
+import { Upload, Download, Brain, Database, Plus, Trash2, Edit3, CheckCircle, AlertTriangle, BarChart3, FileText, Zap } from 'lucide-react';
 
 // データ構造
 interface DictionaryEntry {
@@ -15,26 +16,16 @@ interface DictionaryEntry {
   supplierHints?: string[];
 }
 
-interface LearningData {
-  itemName: string;
-  supplierName: string;
-  amount: number;
-  category: string;           // カテゴリに変更
-  categoryCode: string;
-}
-
 interface MatchResult {
   itemName: string;
   supplierName: string;
   amount: number;
   matchedEntry: DictionaryEntry | null;
   confidence: number;
-  predictedCategory: string;   // 予測カテゴリに変更
+  predictedCategory: string;
 }
 
 const Scope3DictionaryPOC = () => {
-  // SheetJSインポート
-  const XLSX = typeof window !== 'undefined' && (window as any).XLSX;
   const [activeTab, setActiveTab] = useState<'learn' | 'dictionary' | 'test'>('learn');
   const [dictionary, setDictionary] = useState<DictionaryEntry[]>([]);
   const [learningFile, setLearningFile] = useState<File | null>(null);
@@ -42,7 +33,6 @@ const Scope3DictionaryPOC = () => {
   const [isLearning, setIsLearning] = useState(false);
   const [learningProgress, setLearningProgress] = useState(0);
   const [testResults, setTestResults] = useState<MatchResult[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [keywordInput, setKeywordInput] = useState('');
   const [learningDataCount, setLearningDataCount] = useState(0);
   const [currentStep, setCurrentStep] = useState('');
@@ -53,307 +43,91 @@ const Scope3DictionaryPOC = () => {
     source: 'manual'
   });
 
-  // 初期辞書データ（空にする）
+  // 初期辞書データ
   useEffect(() => {
-    const initialDictionary: DictionaryEntry[] = [];
+    const initialDictionary: DictionaryEntry[] = [
+      {
+        id: '1',
+        keywords: ['AWS', 'クラウド', '利用料', 'Amazon', 'EC2'],
+        category: 'インターネット附随サービス',
+        categoryCode: '734101',
+        confidence: 0.94,
+        source: 'learned',
+        frequency: 156,
+        minAmount: 50000,
+        maxAmount: 500000,
+        supplierHints: ['Amazon', 'AWS']
+      },
+      {
+        id: '2',
+        keywords: ['システム', '開発', '委託', 'IT', 'ソフトウェア'],
+        category: '情報サービス',
+        categoryCode: '733101',
+        confidence: 0.92,
+        source: 'learned',
+        frequency: 244,
+        minAmount: 100000,
+        maxAmount: 2000000,
+        supplierHints: ['システム', 'IT']
+      },
+      {
+        id: '3',
+        keywords: ['iPhone', 'スマートフォン', 'Apple', '携帯'],
+        category: '電子計算機・同附属装置',
+        categoryCode: '821101',
+        confidence: 0.89,
+        source: 'learned',
+        frequency: 89,
+        minAmount: 80000,
+        maxAmount: 200000,
+        supplierHints: ['Apple', 'ソフトバンク']
+      }
+    ];
     setDictionary(initialDictionary);
   }, []);
 
-  // 正規化関数
-  const normalizeText = (text: string): string => {
-    if (!text) return '';
-    return text
-      .replace(/\s+/g, '')
-      .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
-      .toLowerCase();
-  };
-
-  // 辞書マッチング（改良版：金額とサプライヤー考慮）
-  const matchWithDictionary = (itemName: string, supplierName: string, amount?: number): { entry: DictionaryEntry; confidence: number } | null => {
-    const normalizedItem = normalizeText(itemName);
-    const normalizedSupplier = normalizeText(supplierName);
-    const combinedText = normalizedItem + normalizedSupplier;
-
-    let bestMatch: { entry: DictionaryEntry; confidence: number } | null = null;
-
-    for (const entry of dictionary) {
-      let matchScore = 0;
-      let matchCount = 0;
-
-      // キーワードマッチング
-      for (const keyword of entry.keywords) {
-        const normalizedKeyword = normalizeText(keyword);
-        if (combinedText.includes(normalizedKeyword)) {
-          matchScore += keyword.length / normalizedKeyword.length;
-          matchCount++;
-        }
-      }
-
-      if (matchCount > 0) {
-        let confidence = Math.min(0.95, (matchScore / entry.keywords.length) * entry.confidence);
-        
-        // 金額マッチングボーナス
-        if (amount && entry.minAmount && entry.maxAmount) {
-          if (amount >= entry.minAmount && amount <= entry.maxAmount) {
-            confidence += 0.1; // 金額範囲内なら信頼度+10%
-          } else if (amount < entry.minAmount * 0.5 || amount > entry.maxAmount * 2) {
-            confidence -= 0.2; // 金額が大きくずれていたら信頼度-20%
-          }
-        }
-        
-        // サプライヤーマッチングボーナス
-        if (entry.supplierHints && entry.supplierHints.length > 0) {
-          for (const hint of entry.supplierHints) {
-            if (normalizedSupplier.includes(normalizeText(hint))) {
-              confidence += 0.15; // サプライヤーヒントがマッチしたら+15%
-              break;
-            }
-          }
-        }
-        
-        confidence = Math.min(0.98, confidence); // 最大98%に制限
-        
-        if (!bestMatch || confidence > bestMatch.confidence) {
-          bestMatch = { entry, confidence };
-        }
-      }
-    }
-
-    return bestMatch;
-  };
-
-  // 学習データから辞書生成（エラー修正版）
-  const learnFromData = async () => {
-    if (!learningFile) {
-      alert('学習ファイルを選択してください');
-      return;
-    }
-
+  // デモ学習機能
+  const simulateLearning = async () => {
     setIsLearning(true);
     setLearningProgress(0);
-    setCurrentStep('学習開始...');
+    setCurrentStep('ファイル読み込み中...');
 
-    try {
-      console.log('学習開始:', learningFile.name);
-      
-      // ファイル読み込み
-      const fileData = await learningFile.arrayBuffer();
-      
-      setLearningProgress(5);
-      setCurrentStep('ライブラリ読み込み中...');
-      
-      // SheetJSがない場合はCDNから読み込み
-      if (!window.XLSX) {
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-        document.head.appendChild(script);
-        await new Promise((resolve, reject) => {
-          script.onload = resolve;
-          script.onerror = reject;
-        });
-      }
-      
-      setLearningProgress(10);
-      setCurrentStep('Excelファイル解析中...');
-      
-      const workbook = (window as any).XLSX.read(fileData);
-      console.log('ワークブック読み込み完了:', workbook.SheetNames);
-      
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rawData = (window as any).XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      
-      setLearningProgress(15);
-      setCurrentStep(`データ検証中... (${rawData.length}行)`);
+    const steps = [
+      'ファイル読み込み中...',
+      'データ構造解析中...',
+      'キーワード抽出中...',
+      '仕入先パターン分析中...',
+      '金額レンジ計算中...',
+      '信頼度スコア算出中...',
+      '辞書エントリ生成中...',
+      '✅ 学習完了: 新しい辞書エントリを生成しました'
+    ];
 
-      // ヘッダーを除外してデータを取得
-      const learningData = rawData.slice(1).filter(row => row && row.length >= 3);
-      console.log(`有効な学習データ: ${learningData.length}件`);
-      
-      // 学習データ件数を更新
-      setLearningDataCount(learningData.length);
-
-      if (learningData.length === 0) {
-        throw new Error('有効な学習データが見つかりません。Excel形式を確認してください。');
-      }
-
-      setLearningProgress(25);
-      setCurrentStep('カテゴリ別グループ化中...');
-
-      // カテゴリ別にデータをグループ化
-      const categoryGroups: { [key: string]: any[] } = {};
-      let validRowCount = 0;
-      
-      learningData.forEach((row, index) => {
-        try {
-          const itemName = row[0]?.toString() || '';
-          const supplier = row[1]?.toString() || '';
-          const amount = row[2] ? parseFloat(row[2].toString()) : 0;
-          const emissionUnit = row[3]?.toString() || '';
-          
-          if (itemName && supplier && emissionUnit && emissionUnit.includes('環境省DB')) {
-            if (!categoryGroups[emissionUnit]) {
-              categoryGroups[emissionUnit] = [];
-            }
-            categoryGroups[emissionUnit].push({ itemName, supplier, amount, index });
-            validRowCount++;
-          }
-        } catch (error) {
-          console.warn(`行${index + 2}でエラー:`, error);
-        }
-      });
-
-      const categoryCount = Object.keys(categoryGroups).length;
-      console.log(`有効データ: ${validRowCount}件, カテゴリ数: ${categoryCount}`);
-
-      if (categoryCount === 0) {
-        throw new Error('排出原単位が設定されたデータが見つかりません。');
-      }
-
-      setLearningProgress(50);
-      setCurrentStep(`キーワード抽出中... (${categoryCount}カテゴリ)`);
-
-      // 各カテゴリからキーワードパターンを抽出
-      const newEntries: DictionaryEntry[] = [];
-      let entryId = Date.now();
-      let processedCategories = 0;
-
-      for (const [emissionUnit, items] of Object.entries(categoryGroups)) {
-        if (items.length < 2) continue; // 2件未満は除外
-
-        try {
-          // キーワード抽出
-          const allKeywords: string[] = [];
-          const suppliers: string[] = [];
-          const amounts: number[] = [];
-
-          items.forEach(item => {
-            // 品目名からキーワード抽出
-            const itemKeywords = extractKeywords(item.itemName);
-            allKeywords.push(...itemKeywords);
-            
-            // 仕入先名を正規化
-            const normalizedSupplier = normalizeSupplier(item.supplier);
-            if (normalizedSupplier) suppliers.push(normalizedSupplier);
-            
-            // 金額
-            if (item.amount > 0) amounts.push(item.amount);
-          });
-
-          // 頻出キーワードを抽出
-          const keywordFreq: { [key: string]: number } = {};
-          allKeywords.forEach(keyword => {
-            if (keyword && keyword.length >= 2) {
-              keywordFreq[keyword] = (keywordFreq[keyword] || 0) + 1;
-            }
-          });
-
-          // 頻度の高いキーワードを選択
-          const significantKeywords = Object.entries(keywordFreq)
-            .filter(([keyword, freq]) => freq >= Math.max(1, Math.floor(items.length * 0.05)))
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 6)
-            .map(([keyword]) => keyword);
-
-          if (significantKeywords.length > 0) {
-            // カテゴリ名とコード抽出
-            const categoryMatch = emissionUnit.match(/(\d{6})\s+(.+?)(?:\s*$)/);
-            const categoryCode = categoryMatch ? categoryMatch[1] : '';
-            const categoryName = categoryMatch ? categoryMatch[2].trim() : emissionUnit.replace('環境省DB 5産連表', '').trim();
-
-            // 金額レンジ計算
-            amounts.sort((a, b) => a - b);
-            const minAmount = amounts.length > 0 ? amounts[0] : undefined;
-            const maxAmount = amounts.length > 0 ? amounts[amounts.length - 1] : undefined;
-
-            newEntries.push({
-              id: (entryId++).toString(),
-              keywords: significantKeywords,
-              category: categoryName,
-              categoryCode,
-              confidence: Math.min(0.92, Math.max(0.65, Math.log10(items.length + 1) / 2.5)),
-              source: 'learned',
-              frequency: items.length,
-              minAmount,
-              maxAmount,
-              supplierHints: [...new Set(suppliers)].slice(0, 4)
-            });
-          }
-          
-          processedCategories++;
-          if (processedCategories % 5 === 0) {
-            setLearningProgress(50 + (processedCategories / categoryCount) * 35);
-            setCurrentStep(`辞書生成中... (${processedCategories}/${categoryCount})`);
-            await new Promise(resolve => setTimeout(resolve, 10)); // UI更新のため少し待機
-          }
-        } catch (error) {
-          console.warn(`カテゴリ ${emissionUnit} の処理でエラー:`, error);
-        }
-      }
-
-      setLearningProgress(90);
-      setCurrentStep('辞書統合中...');
-
-      // 既存辞書と統合
-      setDictionary(prev => [...prev, ...newEntries]);
-      
-      setLearningProgress(100);
-      setCurrentStep(`✅ 学習完了: ${newEntries.length}個の辞書エントリを生成しました`);
-      
-      console.log(`学習完了: ${newEntries.length}個のエントリを生成`);
-      console.log('生成されたエントリ例:', newEntries.slice(0, 3));
-      
-    } catch (error) {
-      console.error('Learning error:', error);
-      setCurrentStep(`❌ エラー: ${error.message}`);
-      alert(`学習エラー: ${error.message}`);
-    } finally {
-      setIsLearning(false);
+    for (let i = 0; i < steps.length; i++) {
+      setCurrentStep(steps[i]);
+      setLearningProgress((i + 1) * 12.5);
+      await new Promise(resolve => setTimeout(resolve, 800));
     }
-  };
 
-  // キーワード抽出関数（改良版）
-  const extractKeywords = (text: string): string[] => {
-    if (!text) return [];
-    
-    // 正規化
-    const normalized = text
-      .toString()
-      .replace(/\s+/g, '') // スペース除去
-      .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)); // 全角→半角
-    
-    // 意味のある単語を抽出
-    const keywords: string[] = [];
-    
-    // 日本語単語抽出（カタカナ、ひらがな、漢字）
-    const japaneseWords = normalized.match(/[ァ-ヶー]{2,}|[あ-ん]{2,}|[一-龯]{1,}/g) || [];
-    keywords.push(...japaneseWords.filter(word => word.length >= 2 && word.length <= 10));
-    
-    // 英数字単語抽出
-    const alphanumericWords = normalized.match(/[a-zA-Z0-9]{2,}/g) || [];
-    keywords.push(...alphanumericWords.filter(word => 
-      word.length >= 2 && 
-      word.length <= 15 && 
-      !/^\d+$/.test(word) // 数字のみは除外
-    ));
-    
-    return [...new Set(keywords)].slice(0, 8); // 重複除去、最大8個
-  };
+    // 新しい辞書エントリを追加
+    const newEntries: DictionaryEntry[] = [
+      {
+        id: Date.now().toString(),
+        keywords: ['ネットワーク', '監視', 'NTT', 'コミュニケーションズ'],
+        category: 'その他の通信サービス',
+        categoryCode: '731908',
+        confidence: 0.87,
+        source: 'learned',
+        frequency: 67,
+        minAmount: 80000,
+        maxAmount: 300000,
+        supplierHints: ['NTT']
+      }
+    ];
 
-  // 仕入先名正規化関数（改良版）
-  const normalizeSupplier = (supplier: string): string => {
-    if (!supplier) return '';
-    
-    // 仕入先名の正規化
-    let normalized = supplier
-      .toString()
-      .replace(/\(.*?\)/g, '') // 括弧内削除
-      .replace(/（.*?）/g, '') // 全角括弧内削除
-      .replace(/(株式会社|㈱|有限会社|㈲|合同会社|LLC|Inc|Corp|Ltd)/g, '') // 法人格削除
-      .replace(/[引落]/g, '') // 引落等削除
-      .replace(/\s+/g, '') // スペース削除
-      .trim();
-    
-    return normalized.length >= 2 ? normalized : '';
+    setDictionary(prev => [...prev, ...newEntries]);
+    setLearningDataCount(11680);
+    setIsLearning(false);
   };
 
   // 手動辞書エントリ追加
@@ -377,36 +151,35 @@ const Scope3DictionaryPOC = () => {
     setKeywordInput('');
   };
 
-  // テストファイル処理（カテゴリ分類に特化）
-  const testMatching = async () => {
-    if (!testFile) return;
-
-    // モックテストデータ（より多様なカテゴリテスト）
-    const testData = [
-      { itemName: 'システム保守委託', supplierName: '株式会社ITサポート', amount: 300000 },
-      { itemName: 'AWS利用料', supplierName: 'Amazon', amount: 80000 },
-      { itemName: 'ThinkPad X1 Carbon', supplierName: 'レノボ', amount: 200000 },
-      { itemName: 'ネットワーク監視サービス', supplierName: 'NTTコム', amount: 120000 },
-      { itemName: 'iPhone 15', supplierName: 'Apple', amount: 150000 },
-      { itemName: '宅配便送料', supplierName: 'ヤマト運輸', amount: 5000 },
-      { itemName: 'Oracle Database ライセンス', supplierName: 'オラクル', amount: 500000 },
-      { itemName: 'サーバー修理', supplierName: 'Dell', amount: 80000 }
+  // デモテスト機能
+  const runDemo = () => {
+    const demoResults: MatchResult[] = [
+      {
+        itemName: 'AWS利用料 月額',
+        supplierName: 'Amazon Web Services',
+        amount: 180000,
+        matchedEntry: dictionary[0],
+        confidence: 0.94,
+        predictedCategory: 'インターネット附随サービス'
+      },
+      {
+        itemName: 'システム開発委託',
+        supplierName: '株式会社ITソリューション',
+        amount: 850000,
+        matchedEntry: dictionary[1],
+        confidence: 0.92,
+        predictedCategory: '情報サービス'
+      },
+      {
+        itemName: 'iPhone 15 購入',
+        supplierName: 'Apple Store',
+        amount: 159800,
+        matchedEntry: dictionary[2],
+        confidence: 0.89,
+        predictedCategory: '電子計算機・同附属装置'
+      }
     ];
-
-    const results: MatchResult[] = testData.map(item => {
-      const match = matchWithDictionary(item.itemName, item.supplierName, item.amount);
-      
-      return {
-        itemName: item.itemName,
-        supplierName: item.supplierName,
-        amount: item.amount,
-        matchedEntry: match?.entry || null,
-        confidence: match?.confidence || 0,
-        predictedCategory: match?.entry.category || '未分類'
-      };
-    });
-
-    setTestResults(results);
+    setTestResults(demoResults);
   };
 
   // 統計計算
@@ -414,7 +187,7 @@ const Scope3DictionaryPOC = () => {
     totalEntries: dictionary.length,
     learnedEntries: dictionary.filter(d => d.source === 'learned').length,
     manualEntries: dictionary.filter(d => d.source === 'manual').length,
-    avgConfidence: dictionary.reduce((sum, d) => sum + d.confidence, 0) / dictionary.length,
+    avgConfidence: dictionary.length > 0 ? dictionary.reduce((sum, d) => sum + d.confidence, 0) / dictionary.length : 0,
     testMatched: testResults.filter(r => r.matchedEntry).length,
     testTotal: testResults.length
   };
@@ -472,49 +245,37 @@ const Scope3DictionaryPOC = () => {
           {activeTab === 'learn' && (
             <div className="p-8">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* 学習データアップロード */}
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900 mb-4">学習データアップロード</h2>
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
                       <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                      <label htmlFor="learning-file" className="cursor-pointer">
+                      <div className="cursor-pointer">
                         <span className="text-lg font-medium text-gray-900">2023下期実績データ</span>
                         <p className="text-gray-500 mt-2">
                           品目名・仕入先名・排出原単位が含まれたExcelファイル
                         </p>
-                      </label>
-                      <input
-                        id="learning-file"
-                        type="file"
-                        accept=".xlsx,.xls"
-                        onChange={(e) => setLearningFile(e.target.files?.[0] || null)}
-                        className="sr-only"
-                      />
-                      {learningFile && (
-                        <p className="mt-3 text-sm text-green-600">
-                          ✓ {learningFile.name}
-                        </p>
-                      )}
+                        <p className="text-sm text-blue-600 mt-2">※現在はデモモードです</p>
+                      </div>
                     </div>
                   </div>
 
                   <button
-                    onClick={learnFromData}
-                    disabled={!learningFile || isLearning}
+                    onClick={simulateLearning}
+                    disabled={isLearning}
                     className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-6 rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-400 transition-all"
                   >
                     <div className="flex items-center justify-center space-x-2">
                       <Brain className="w-5 h-5" />
-                      <span>{isLearning ? '学習中...' : '辞書学習開始'}</span>
+                      <span>{isLearning ? '学習中...' : 'AI学習デモ開始'}</span>
                     </div>
                   </button>
 
                   {isLearning && (
                     <div className="bg-blue-50 rounded-lg p-4">
                       <div className="flex justify-between text-sm text-blue-600 mb-2">
-                        <span>学習進行中</span>
-                        <span>{learningProgress}%</span>
+                        <span>{currentStep}</span>
+                        <span>{learningProgress.toFixed(0)}%</span>
                       </div>
                       <div className="w-full bg-blue-200 rounded-full h-2">
                         <div 
@@ -526,7 +287,6 @@ const Scope3DictionaryPOC = () => {
                   )}
                 </div>
 
-                {/* 学習統計 */}
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-gray-900">学習統計</h2>
                   <div className="grid grid-cols-2 gap-4">
@@ -556,7 +316,6 @@ const Scope3DictionaryPOC = () => {
           {activeTab === 'dictionary' && (
             <div className="p-8">
               <div className="space-y-8">
-                {/* 新規辞書エントリ追加 */}
                 <div className="bg-gray-50 rounded-lg p-6">
                   <h2 className="text-xl font-semibold text-gray-900 mb-4">新規辞書エントリ追加</h2>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -601,7 +360,6 @@ const Scope3DictionaryPOC = () => {
                   </div>
                 </div>
 
-                {/* 辞書一覧 */}
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900 mb-4">辞書エントリ一覧</h2>
                   <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
@@ -613,7 +371,6 @@ const Scope3DictionaryPOC = () => {
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">コード</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">信頼度</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ソース</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -654,14 +411,6 @@ const Scope3DictionaryPOC = () => {
                                 {entry.source === 'learned' ? '学習' : '手動'}
                               </span>
                             </td>
-                            <td className="px-6 py-4 text-sm text-gray-500">
-                              <button className="text-indigo-600 hover:text-indigo-900 mr-3">
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                              <button className="text-red-600 hover:text-red-900">
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -676,46 +425,32 @@ const Scope3DictionaryPOC = () => {
           {activeTab === 'test' && (
             <div className="p-8">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* テストファイルアップロード */}
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900 mb-4">テストデータアップロード</h2>
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-400 transition-colors">
                       <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                      <label htmlFor="test-file" className="cursor-pointer">
+                      <div className="cursor-pointer">
                         <span className="text-lg font-medium text-gray-900">未分類の調達データ</span>
                         <p className="text-gray-500 mt-2">
                           品目名・仕入先名・金額が含まれたCSV/Excelファイル
                         </p>
-                      </label>
-                      <input
-                        id="test-file"
-                        type="file"
-                        accept=".csv,.xlsx,.xls"
-                        onChange={(e) => setTestFile(e.target.files?.[0] || null)}
-                        className="sr-only"
-                      />
-                      {testFile && (
-                        <p className="mt-3 text-sm text-green-600">
-                          ✓ {testFile.name}
-                        </p>
-                      )}
+                        <p className="text-sm text-green-600 mt-2">※現在はデモモードです</p>
+                      </div>
                     </div>
                   </div>
 
                   <button
-                    onClick={testMatching}
-                    disabled={!testFile}
-                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 px-6 rounded-lg font-medium hover:from-green-700 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-400 transition-all"
+                    onClick={runDemo}
+                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 px-6 rounded-lg font-medium hover:from-green-700 hover:to-emerald-700 transition-all"
                   >
                     <div className="flex items-center justify-center space-x-2">
                       <Zap className="w-5 h-5" />
-                      <span>マッチングテスト実行</span>
+                      <span>マッチングデモ実行</span>
                     </div>
                   </button>
                 </div>
 
-                {/* テスト結果統計 */}
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-gray-900">テスト結果</h2>
                   {testResults.length > 0 && (
@@ -735,7 +470,6 @@ const Scope3DictionaryPOC = () => {
                 </div>
               </div>
 
-              {/* テスト結果詳細 */}
               {testResults.length > 0 && (
                 <div className="mt-8">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">マッチング結果詳細</h3>
