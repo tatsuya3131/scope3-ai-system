@@ -26,9 +26,15 @@ const Scope3DictionaryPOC = () => {
     setDictionary([]);
   }, []);
 
-  // XLSX チェック
+  // XLSX チェック強化
   const hasXLSX = () => {
-    return typeof window !== 'undefined' && (window as any).XLSX;
+    const hasLib = typeof window !== 'undefined' && (window as any).XLSX;
+    console.log('XLSX チェック:', hasLib ? '✅ 利用可能' : '❌ 利用不可');
+    if (!hasLib) {
+      console.log('window.XLSX:', (window as any).XLSX);
+      console.log('利用可能なライブラリ:', Object.keys(window).filter(key => key.toLowerCase().includes('xlsx')));
+    }
+    return hasLib;
   };
 
   // 学習実行
@@ -39,7 +45,15 @@ const Scope3DictionaryPOC = () => {
     }
 
     if (!hasXLSX()) {
-      alert('Excelライブラリが読み込まれていません。ページを再読み込みしてください。');
+      // 5秒後に再試行
+      setTimeout(() => {
+        if (!hasXLSX()) {
+          alert('Excelライブラリが読み込まれていません。ページを再読み込みして数秒待ってから再試行してください。');
+        } else {
+          // 再帰呼び出しで学習実行
+          learnFromData();
+        }
+      }, 5000);
       return;
     }
 
@@ -475,9 +489,9 @@ const Scope3DictionaryPOC = () => {
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900 mb-4">学習データアップロード</h2>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
+                    <div className="relative border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors bg-gray-50 hover:bg-blue-50">
                       <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                      <div>
+                      <div className="relative">
                         <input
                           type="file"
                           accept=".xlsx,.xls,.csv"
@@ -488,10 +502,9 @@ const Scope3DictionaryPOC = () => {
                               console.log('✅ ファイル選択:', file.name);
                             }
                           }}
-                          className="hidden"
-                          id="learning-file-input"
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         />
-                        <label htmlFor="learning-file-input" className="cursor-pointer block">
+                        <div className="relative z-10 pointer-events-none">
                           {learningFile ? (
                             <div className="space-y-2">
                               <span className="text-lg font-medium text-green-600">
@@ -504,12 +517,13 @@ const Scope3DictionaryPOC = () => {
                             </div>
                           ) : (
                             <div className="space-y-2">
-                              <span className="text-lg font-medium text-gray-900">Excelファイルを選択</span>
+                              <span className="text-lg font-medium text-gray-900">📁 Excelファイルを選択</span>
                               <p className="text-gray-500">品目名・仕入先名・排出原単位が含まれたExcelファイル</p>
                               <p className="text-sm text-blue-600">対応形式: .xlsx, .xls, .csv</p>
+                              <p className="text-xs text-red-600 font-bold">👆 この領域をクリックしてください</p>
                             </div>
                           )}
-                        </label>
+                        </div>
                       </div>
                     </div>
                   </div>
