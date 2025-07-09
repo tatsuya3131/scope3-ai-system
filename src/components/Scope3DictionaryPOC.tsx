@@ -43,11 +43,12 @@ const Scope3DictionaryPOC = () => {
     source: 'manual'
   });
 
-  // 初期辞書データ
-  useEffect(() => {
-  const initialDictionary: DictionaryEntry[] = [];
-    setDictionary(initialDictionary);
-  }, []);
+// 初期辞書データ
+useEffect(() => {
+  console.log('useEffect実行: 辞書を空に初期化');
+  setDictionary([]);
+  console.log('初期化完了');
+}, []);
 
   // デモ学習機能
 // 実際の学習データから辞書生成（修正版）
