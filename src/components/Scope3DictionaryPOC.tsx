@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, Download, Brain, Database, Plus, Trash2, Edit3, CheckCircle, AlertTriangle, BarChart3, FileText, Zap } from 'lucide-react';
 
-// データ構造の型定義を明確化
+// 型定義を完全に明確化
 interface DictionaryEntry {
   id: string;
   keywords: string[];
@@ -25,16 +25,12 @@ interface MatchResult {
   predictedCategory: string;
 }
 
-// 新規エントリの初期値を関数として定義
-const createNewEntry = (): DictionaryEntry => ({
-  id: '',
-  keywords: [],
-  category: '',
-  categoryCode: '',
-  confidence: 0.9,
-  source: 'manual',
-  frequency: 1
-});
+// XLSX の型定義
+declare global {
+  interface Window {
+    XLSX: any;
+  }
+}
 
 const Scope3DictionaryPOC = () => {
   const [activeTab, setActiveTab] = useState<'learn' | 'dictionary' | 'test'>('learn');
@@ -50,7 +46,10 @@ const Scope3DictionaryPOC = () => {
   const [learningDataCount, setLearningDataCount] = useState(0);
   const [currentStep, setCurrentStep] = useState('');
   const [testStep, setTestStep] = useState('');
-  const [newEntry, setNewEntry] = useState<DictionaryEntry>(createNewEntry());
+  
+  // 新規エントリの状態管理を明確化
+  const [newEntryCategory, setNewEntryCategory] = useState('');
+  const [newEntryCategoryCode, setNewEntryCategoryCode] = useState('');
 
   // 初期化処理
   useEffect(() => {
@@ -67,7 +66,7 @@ const Scope3DictionaryPOC = () => {
 
   // XLSX の型チェック関数
   const isXLSXAvailable = (): boolean => {
-    return typeof window !== 'undefined' && (window as any).XLSX;
+    return typeof window !== 'undefined' && window.XLSX;
   };
 
   // 実際の学習データから辞書生成
@@ -94,7 +93,7 @@ const Scope3DictionaryPOC = () => {
       setCurrentStep('Excelファイル解析中...');
 
       // SheetJSを使用してExcel解析
-      const XLSX = (window as any).XLSX;
+      const XLSX = window.XLSX;
       const workbook = XLSX.read(fileData);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
@@ -209,7 +208,7 @@ const Scope3DictionaryPOC = () => {
               Math.max(0.7, 0.7 + (Math.log10(items.length + 1) / 10))
             );
 
-            newEntries.push({
+            const newEntry: DictionaryEntry = {
               id: (entryId++).toString(),
               keywords: significantKeywords,
               category: categoryName,
@@ -220,7 +219,9 @@ const Scope3DictionaryPOC = () => {
               minAmount,
               maxAmount,
               supplierHints: Array.from(new Set(suppliers)).slice(0, 4)
-            });
+            };
+
+            newEntries.push(newEntry);
           }
         } catch (error) {
           console.warn(`カテゴリ ${emissionUnit} の処理でエラー:`, error);
@@ -277,7 +278,7 @@ const Scope3DictionaryPOC = () => {
       setTestStep('ファイル解析中...');
 
       // Excel/CSV解析
-      const XLSX = (window as any).XLSX;
+      const XLSX = window.XLSX;
       const workbook = XLSX.read(fileData);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
@@ -309,14 +310,16 @@ const Scope3DictionaryPOC = () => {
           // マッチング実行
           const matchResult = findBestMatch(itemName, supplierName, amount);
           
-          results.push({
+          const result: MatchResult = {
             itemName,
             supplierName,
             amount,
             matchedEntry: matchResult.entry,
             confidence: matchResult.confidence,
             predictedCategory: matchResult.entry ? matchResult.entry.category : '未分類'
-          });
+          };
+
+          results.push(result);
 
           // 進捗更新
           const progress = 60 + (index / testData.length) * 30;
@@ -445,22 +448,23 @@ const Scope3DictionaryPOC = () => {
 
   // 手動辞書エントリ追加
   const addDictionaryEntry = () => {
-    if (!newEntry.category || !newEntry.categoryCode || keywordInput.trim() === '') return;
+    if (!newEntryCategory || !newEntryCategoryCode || keywordInput.trim() === '') return;
 
     const keywords = keywordInput.split(/[,、]/).map(k => k.trim()).filter(k => k);
     
     const entry: DictionaryEntry = {
       id: Date.now().toString(),
       keywords,
-      category: newEntry.category,
-      categoryCode: newEntry.categoryCode,
+      category: newEntryCategory,
+      categoryCode: newEntryCategoryCode,
       confidence: 0.90,
       source: 'manual',
       frequency: 1
     };
 
     setDictionary(prev => [...prev, entry]);
-    setNewEntry(createNewEntry());
+    setNewEntryCategory('');
+    setNewEntryCategoryCode('');
     setKeywordInput('');
   };
 
@@ -704,8 +708,8 @@ const Scope3DictionaryPOC = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-2">カテゴリ名</label>
                       <input
                         type="text"
-                        value={newEntry.category}
-                        onChange={(e) => setNewEntry(prev => ({ ...prev, category: e.target.value }))}
+                        value={newEntryCategory}
+                        onChange={(e) => setNewEntryCategory(e.target.value)}
                         placeholder="例：情報サービス"
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
@@ -715,8 +719,8 @@ const Scope3DictionaryPOC = () => {
                       <div className="flex space-x-2">
                         <input
                           type="text"
-                          value={newEntry.categoryCode}
-                          onChange={(e) => setNewEntry(prev => ({ ...prev, categoryCode: e.target.value }))}
+                          value={newEntryCategoryCode}
+                          onChange={(e) => setNewEntryCategoryCode(e.target.value)}
                           placeholder="733101"
                           className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
