@@ -329,15 +329,19 @@ const runDemo = () => {
   setTestResults(demoResults);
 };
 
-  // 統計計算
-  const stats = {
-    totalEntries: dictionary.length,
-    learnedEntries: dictionary.filter(d => d.source === 'learned').length,
-    manualEntries: dictionary.filter(d => d.source === 'manual').length,
-    avgConfidence: dictionary.length > 0 ? dictionary.reduce((sum, d) => sum + d.confidence, 0) / dictionary.length : 0,
-    testMatched: testResults.filter(r => r.matchedEntry).length,
-    testTotal: testResults.length
-  };
+ // 統計計算
+const stats = {
+  totalEntries: dictionary.length,
+  learnedEntries: dictionary.filter(d => d.source === 'learned').length,
+  manualEntries: dictionary.filter(d => d.source === 'manual').length,
+  avgConfidence: dictionary.length > 0 ? dictionary.reduce((sum, d) => sum + d.confidence, 0) / dictionary.length : 0,
+  testMatched: testResults.filter(r => r.matchedEntry).length,
+  testTotal: testResults.length
+};
+
+// デバッグ用ログ追加
+console.log('🔍 現在の辞書状態:', dictionary);
+console.log('📊 統計:', stats);
 // キーワード抽出関数（高精度版）
 // 仕入先名正規化関数（改良版）
 const normalizeSupplierName = (supplier: string): string => {
