@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { Upload, Download, Brain, Database, Plus, Trash2, Edit3, CheckCircle, AlertTriangle, BarChart3, FileText, Zap } from 'lucide-react';
-import * as XLSX from 'xlsx'; //
+import * as XLSX from 'xlsx';
 
 // データ構造
 interface DictionaryEntry {
@@ -41,18 +41,13 @@ const Scope3DictionaryPOC = () => {
   const [currentStep, setCurrentStep] = useState('');
   const [testStep, setTestStep] = useState('');
   const [newEntry, setNewEntry] = useState<DictionaryEntry>({
-  id: '',
-  keywords: [],
-  category: '',
-  categoryCode: '',
-  confidence: 0.9,
-  source: 'manual',
-  frequency: 1
-});
+    id: '',
     keywords: [],
     category: '',
     categoryCode: '',
-    source: 'manual'
+    confidence: 0.9,
+    source: 'manual',
+    frequency: 1
   });
 
   // 初期辞書データ - 完全に空で開始
@@ -87,154 +82,149 @@ const Scope3DictionaryPOC = () => {
       setCurrentStep('Excelファイル解析中...');
 
       // SheetJSを使用してExcel解析
-        const workbook = XLSX.read(fileData);
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      const workbook = XLSX.read(fileData);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-        setLearningProgress(25);
-        setCurrentStep(`データ解析中... (${rawData.length}行)`);
+      setLearningProgress(25);
+      setCurrentStep(`データ解析中... (${rawData.length}行)`);
 
-        // ヘッダーを除外してデータを取得（品目名、仕入先名、金額、排出原単位）
-        const learningData = rawData.slice(1).filter((row: any) => 
-          row && row.length >= 4 && row[3] && row[3].toString().includes('環境省DB')
-        );
-        
-        setLearningDataCount(learningData.length);
-        console.log(`有効な学習データ: ${learningData.length}件`);
+      // ヘッダーを除外してデータを取得（品目名、仕入先名、金額、排出原単位）
+      const learningData = rawData.slice(1).filter((row: any) => 
+        row && row.length >= 4 && row[3] && row[3].toString().includes('環境省DB')
+      );
+      
+      setLearningDataCount(learningData.length);
+      console.log(`有効な学習データ: ${learningData.length}件`);
 
-        if (learningData.length === 0) {
-          throw new Error('環境省DB排出原単位が設定されたデータが見つかりません。');
+      if (learningData.length === 0) {
+        throw new Error('環境省DB排出原単位が設定されたデータが見つかりません。');
+      }
+
+      setLearningProgress(50);
+      setCurrentStep('カテゴリ別グループ化中...');
+
+      // カテゴリ別にデータをグループ化
+      const categoryGroups: { [key: string]: any[] } = {};
+      
+      learningData.forEach((row: any, index: number) => {
+        try {
+          const itemName = row[0]?.toString() || '';
+          const supplier = row[1]?.toString() || '';
+          const amount = row[2] ? parseFloat(row[2].toString()) : 0;
+          const emissionUnit = row[3]?.toString() || '';
+          
+          if (itemName && supplier && emissionUnit) {
+            if (!categoryGroups[emissionUnit]) {
+              categoryGroups[emissionUnit] = [];
+            }
+            categoryGroups[emissionUnit].push({ 
+              itemName, 
+              supplier, 
+              amount, 
+              index: index + 2 
+            });
+          }
+        } catch (error) {
+          console.warn(`行${index + 2}でエラー:`, error);
         }
+      });
 
-        setLearningProgress(50);
-        setCurrentStep('カテゴリ別グループ化中...');
+      const categoryCount = Object.keys(categoryGroups).length;
+      console.log(`カテゴリ数: ${categoryCount}`);
 
-        // カテゴリ別にデータをグループ化
-        const categoryGroups: { [key: string]: any[] } = {};
-        
-        learningData.forEach((row: any, index: number) => {
-          try {
-            const itemName = row[0]?.toString() || '';
-            const supplier = row[1]?.toString() || '';
-            const amount = row[2] ? parseFloat(row[2].toString()) : 0;
-            const emissionUnit = row[3]?.toString() || '';
+      setLearningProgress(75);
+      setCurrentStep(`辞書生成中... (${categoryCount}カテゴリ)`);
+
+      // 各カテゴリからキーワードパターンを抽出
+      const newEntries: DictionaryEntry[] = [];
+      let entryId = Date.now();
+
+      for (const [emissionUnit, items] of Object.entries(categoryGroups)) {
+        if (items.length < 2) continue; // 最低2件以上で学習
+
+        try {
+          // 1. キーワード抽出
+          const allKeywords: string[] = [];
+          const suppliers: string[] = [];
+          const amounts: number[] = [];
+
+          items.forEach(item => {
+            // 品目名からキーワード抽出
+            const itemKeywords = extractKeywordsFromText(item.itemName);
+            allKeywords.push(...itemKeywords);
             
-            if (itemName && supplier && emissionUnit) {
-              if (!categoryGroups[emissionUnit]) {
-                categoryGroups[emissionUnit] = [];
-              }
-              categoryGroups[emissionUnit].push({ 
-                itemName, 
-                supplier, 
-                amount, 
-                index: index + 2 
-              });
+            // 仕入先名を正規化
+            const normalizedSupplier = normalizeSupplierName(item.supplier);
+            if (normalizedSupplier) suppliers.push(normalizedSupplier);
+            
+            // 金額収集
+            if (item.amount > 0) amounts.push(item.amount);
+          });
+
+          // 2. 頻出キーワードを抽出
+          const keywordFreq: { [key: string]: number } = {};
+          allKeywords.forEach(keyword => {
+            if (keyword && keyword.length >= 2) {
+              keywordFreq[keyword] = (keywordFreq[keyword] || 0) + 1;
             }
-          } catch (error) {
-            console.warn(`行${index + 2}でエラー:`, error);
-          }
-        });
+          });
 
-        const categoryCount = Object.keys(categoryGroups).length;
-        console.log(`カテゴリ数: ${categoryCount}`);
+          // 3. 重要キーワードを選択（頻度ベース）
+          const minFreq = Math.max(1, Math.floor(items.length * 0.1)); // 最低10%の頻度
+          const significantKeywords = Object.entries(keywordFreq)
+            .filter(([_, freq]) => freq >= minFreq)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6) // 最大6個
+            .map(([keyword]) => keyword);
 
-        setLearningProgress(75);
-        setCurrentStep(`辞書生成中... (${categoryCount}カテゴリ)`);
+          if (significantKeywords.length > 0) {
+            // 4. カテゴリ名とコード抽出
+            const categoryMatch = emissionUnit.match(/(\d{6})\s+(.+?)(?:\s*$)/);
+            const categoryCode = categoryMatch ? categoryMatch[1] : '';
+            const categoryName = categoryMatch ? 
+              categoryMatch[2].trim() : 
+              emissionUnit.replace('環境省DB 5産連表', '').trim();
 
-        // 各カテゴリからキーワードパターンを抽出
-        const newEntries: DictionaryEntry[] = [];
-        let entryId = Date.now();
+            // 5. 金額レンジ計算
+            amounts.sort((a, b) => a - b);
+            const minAmount = amounts.length > 0 ? amounts[0] : undefined;
+            const maxAmount = amounts.length > 0 ? amounts[amounts.length - 1] : undefined;
 
-        for (const [emissionUnit, items] of Object.entries(categoryGroups)) {
-          if (items.length < 2) continue; // 最低2件以上で学習
+            // 6. 信頼度計算（データ件数ベース）
+            const confidence = Math.min(0.95, 
+              Math.max(0.7, 0.7 + (Math.log10(items.length + 1) / 10))
+            );
 
-          try {
-            // 1. キーワード抽出
-            const allKeywords: string[] = [];
-            const suppliers: string[] = [];
-            const amounts: number[] = [];
-
-            items.forEach(item => {
-              // 品目名からキーワード抽出
-              const itemKeywords = extractKeywordsFromText(item.itemName);
-              allKeywords.push(...itemKeywords);
-              
-              // 仕入先名を正規化
-              const normalizedSupplier = normalizeSupplierName(item.supplier);
-              if (normalizedSupplier) suppliers.push(normalizedSupplier);
-              
-              // 金額収集
-              if (item.amount > 0) amounts.push(item.amount);
+            newEntries.push({
+              id: (entryId++).toString(),
+              keywords: significantKeywords,
+              category: categoryName,
+              categoryCode,
+              confidence,
+              source: 'learned',
+              frequency: items.length,
+              minAmount,
+              maxAmount,
+              supplierHints: Array.from(new Set(suppliers)).slice(0, 4)
             });
-
-            // 2. 頻出キーワードを抽出
-            const keywordFreq: { [key: string]: number } = {};
-            allKeywords.forEach(keyword => {
-              if (keyword && keyword.length >= 2) {
-                keywordFreq[keyword] = (keywordFreq[keyword] || 0) + 1;
-              }
-            });
-
-            // 3. 重要キーワードを選択（頻度ベース）
-            const minFreq = Math.max(1, Math.floor(items.length * 0.1)); // 最低10%の頻度
-            const significantKeywords = Object.entries(keywordFreq)
-              .filter(([_, freq]) => freq >= minFreq)
-              .sort((a, b) => b[1] - a[1])
-              .slice(0, 6) // 最大6個
-              .map(([keyword]) => keyword);
-
-            if (significantKeywords.length > 0) {
-              // 4. カテゴリ名とコード抽出
-              const categoryMatch = emissionUnit.match(/(\d{6})\s+(.+?)(?:\s*$)/);
-              const categoryCode = categoryMatch ? categoryMatch[1] : '';
-              const categoryName = categoryMatch ? 
-                categoryMatch[2].trim() : 
-                emissionUnit.replace('環境省DB 5産連表', '').trim();
-
-              // 5. 金額レンジ計算
-              amounts.sort((a, b) => a - b);
-              const minAmount = amounts.length > 0 ? amounts[0] : undefined;
-              const maxAmount = amounts.length > 0 ? amounts[amounts.length - 1] : undefined;
-
-              // 6. 信頼度計算（データ件数ベース）
-              const confidence = Math.min(0.95, 
-                Math.max(0.7, 0.7 + (Math.log10(items.length + 1) / 10))
-              );
-
-              newEntries.push({
-                id: (entryId++).toString(),
-                keywords: significantKeywords,
-                category: categoryName,
-                categoryCode,
-                confidence,
-                source: 'learned',
-                frequency: items.length,
-                minAmount,
-                maxAmount,
-                supplierHints: Array.from(new Set(suppliers)).slice(0, 4)
-              });
-            }
-          } catch (error) {
-            console.warn(`カテゴリ ${emissionUnit} の処理でエラー:`, error);
           }
+        } catch (error) {
+          console.warn(`カテゴリ ${emissionUnit} の処理でエラー:`, error);
         }
+      }
 
-        setLearningProgress(90);
-        setCurrentStep('辞書統合中...');
+      setLearningProgress(90);
+      setCurrentStep('辞書統合中...');
 
-        // 既存辞書と統合
-        setDictionary(prev => [...prev, ...newEntries]);
-        
-        setLearningProgress(100);
-        setCurrentStep(`✅ 学習完了: ${newEntries.length}個の辞書エントリを生成しました`);
-        
-        console.log(`学習完了: ${newEntries.length}個のエントリを生成`);
-        console.log('生成されたエントリ例:', newEntries.slice(0, 3));
-        
-     console.log(`テスト完了: ${results.length}件を処理`);
-console.log('マッチング結果例:', results.slice(0, 3));
-
-} catch (error: any) {
+      // 既存辞書と統合
+      setDictionary(prev => [...prev, ...newEntries]);
+      
+      setLearningProgress(100);
+      setCurrentStep(`✅ 学習完了: ${newEntries.length}個の辞書エントリを生成しました`);
+      
+      console.log(`学習完了: ${newEntries.length}個のエントリを生成`);
+      console.log('生成されたエントリ例:', newEntries.slice(0, 3));
       
     } catch (error: any) {
       console.error('Learning error:', error);
@@ -269,61 +259,61 @@ console.log('マッチング結果例:', results.slice(0, 3));
       setTestStep('ファイル解析中...');
 
       // Excel/CSV解析
-        const workbook = XLSX.read(fileData);
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      const workbook = XLSX.read(fileData);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-        setTestProgress(40);
-        setTestStep(`データ解析中... (${rawData.length}行)`);
+      setTestProgress(40);
+      setTestStep(`データ解析中... (${rawData.length}行)`);
 
-        // ヘッダーを除外してテストデータを取得
-        const testData = rawData.slice(1).filter((row: any) => 
-          row && row.length >= 3 && row[0] && row[1] // 品目名と仕入先名が必須
-        );
+      // ヘッダーを除外してテストデータを取得
+      const testData = rawData.slice(1).filter((row: any) => 
+        row && row.length >= 3 && row[0] && row[1] // 品目名と仕入先名が必須
+      );
 
-        if (testData.length === 0) {
-          throw new Error('有効なテストデータが見つかりません。品目名・仕入先名・金額の列があることを確認してください。');
+      if (testData.length === 0) {
+        throw new Error('有効なテストデータが見つかりません。品目名・仕入先名・金額の列があることを確認してください。');
+      }
+
+      setTestProgress(60);
+      setTestStep(`マッチング処理中... (${testData.length}件)`);
+
+      // 各行に対してマッチング実行
+      const results: MatchResult[] = [];
+      
+      testData.forEach((row: any, index: number) => {
+        try {
+          const itemName = row[0]?.toString() || '';
+          const supplierName = row[1]?.toString() || '';
+          const amount = row[2] ? parseFloat(row[2].toString()) : 0;
+
+          // マッチング実行
+          const matchResult = findBestMatch(itemName, supplierName, amount);
+          
+          results.push({
+            itemName,
+            supplierName,
+            amount,
+            matchedEntry: matchResult.entry,
+            confidence: matchResult.confidence,
+            predictedCategory: matchResult.entry ? matchResult.entry.category : '未分類'
+          });
+
+          // 進捗更新
+          const progress = 60 + (index / testData.length) * 30;
+          setTestProgress(progress);
+          
+        } catch (error) {
+          console.warn(`行${index + 2}の処理でエラー:`, error);
         }
+      });
 
-        setTestProgress(60);
-        setTestStep(`マッチング処理中... (${testData.length}件)`);
+      setTestProgress(100);
+      setTestStep(`✅ テスト完了: ${results.length}件を処理しました`);
+      setTestResults(results);
 
-        // 各行に対してマッチング実行
-        const results: MatchResult[] = [];
-        
-        testData.forEach((row: any, index: number) => {
-          try {
-            const itemName = row[0]?.toString() || '';
-            const supplierName = row[1]?.toString() || '';
-            const amount = row[2] ? parseFloat(row[2].toString()) : 0;
-
-            // マッチング実行
-            const matchResult = findBestMatch(itemName, supplierName, amount);
-            
-            results.push({
-              itemName,
-              supplierName,
-              amount,
-              matchedEntry: matchResult.entry,
-              confidence: matchResult.confidence,
-              predictedCategory: matchResult.entry ? matchResult.entry.category : '未分類'
-            });
-
-            // 進捗更新
-            const progress = 60 + (index / testData.length) * 30;
-            setTestProgress(progress);
-            
-          } catch (error) {
-            console.warn(`行${index + 2}の処理でエラー:`, error);
-          }
-        });
-
-        setTestProgress(100);
-        setTestStep(`✅ テスト完了: ${results.length}件を処理しました`);
-        setTestResults(results);
-
-        console.log(`テスト完了: ${results.length}件を処理`);
-        console.log('マッチング結果例:', results.slice(0, 3));
+      console.log(`テスト完了: ${results.length}件を処理`);
+      console.log('マッチング結果例:', results.slice(0, 3));
 
     } catch (error: any) {
       console.error('Test error:', error);
@@ -444,15 +434,23 @@ console.log('マッチング結果例:', results.slice(0, 3));
     const entry: DictionaryEntry = {
       id: Date.now().toString(),
       keywords,
-category: newEntry.category,
-categoryCode: newEntry.categoryCode,
+      category: newEntry.category,
+      categoryCode: newEntry.categoryCode,
       confidence: 0.90,
       source: 'manual',
       frequency: 1
     };
 
     setDictionary(prev => [...prev, entry]);
-    setNewEntry({ keywords: [], category: '', categoryCode: '', source: 'manual' });
+    setNewEntry({
+      id: '',
+      keywords: [],
+      category: '',
+      categoryCode: '',
+      confidence: 0.9,
+      source: 'manual',
+      frequency: 1
+    });
     setKeywordInput('');
   };
 
@@ -696,7 +694,7 @@ categoryCode: newEntry.categoryCode,
                       <label className="block text-sm font-medium text-gray-700 mb-2">カテゴリ名</label>
                       <input
                         type="text"
-                        value={newEntry.category || ''}
+                        value={newEntry.category}
                         onChange={(e) => setNewEntry(prev => ({ ...prev, category: e.target.value }))}
                         placeholder="例：情報サービス"
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -707,7 +705,7 @@ categoryCode: newEntry.categoryCode,
                       <div className="flex space-x-2">
                         <input
                           type="text"
-                          value={newEntry.categoryCode || ''}
+                          value={newEntry.categoryCode}
                           onChange={(e) => setNewEntry(prev => ({ ...prev, categoryCode: e.target.value }))}
                           placeholder="733101"
                           className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
