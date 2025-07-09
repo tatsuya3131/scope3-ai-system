@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { Upload, Download, Brain, Database, Plus, Trash2, Edit3, CheckCircle, AlertTriangle, BarChart3, FileText, Zap } from 'lucide-react';
+import * as XLSX from 'xlsx'; //
 
 // データ構造
 interface DictionaryEntry {
@@ -78,8 +79,6 @@ const Scope3DictionaryPOC = () => {
       setCurrentStep('Excelファイル解析中...');
 
       // SheetJSを使用してExcel解析
-      if (typeof window !== 'undefined' && (window as any).XLSX) {
-        const XLSX = (window as any).XLSX;
         const workbook = XLSX.read(fileData);
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
@@ -224,9 +223,10 @@ const Scope3DictionaryPOC = () => {
         console.log(`学習完了: ${newEntries.length}個のエントリを生成`);
         console.log('生成されたエントリ例:', newEntries.slice(0, 3));
         
-      } else {
-        throw new Error('Excelライブラリが読み込まれていません。ページを再読み込みしてください。');
-      }
+     console.log(`テスト完了: ${results.length}件を処理`);
+console.log('マッチング結果例:', results.slice(0, 3));
+
+} catch (error: any) {
       
     } catch (error: any) {
       console.error('Learning error:', error);
@@ -261,8 +261,6 @@ const Scope3DictionaryPOC = () => {
       setTestStep('ファイル解析中...');
 
       // Excel/CSV解析
-      if (typeof window !== 'undefined' && (window as any).XLSX) {
-        const XLSX = (window as any).XLSX;
         const workbook = XLSX.read(fileData);
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
@@ -318,10 +316,6 @@ const Scope3DictionaryPOC = () => {
 
         console.log(`テスト完了: ${results.length}件を処理`);
         console.log('マッチング結果例:', results.slice(0, 3));
-
-      } else {
-        throw new Error('Excelライブラリが読み込まれていません。');
-      }
 
     } catch (error: any) {
       console.error('Test error:', error);
