@@ -701,7 +701,6 @@ console.log('📊 統計:', stats);
                         <p className="text-gray-500 mt-2">
                           品目名・仕入先名・金額が含まれたCSV/Excelファイル
                         </p>
-                        <p className="text-sm text-green-600 mt-2">※現在はデモモードです</p>
                       </div>
                     </div>
                   </div>
