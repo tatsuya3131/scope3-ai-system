@@ -45,44 +45,7 @@ const Scope3DictionaryPOC = () => {
 
   // 初期辞書データ
   useEffect(() => {
-    const initialDictionary: DictionaryEntry[] = [
-      {
-        id: '1',
-        keywords: ['AWS', 'クラウド', '利用料', 'Amazon', 'EC2'],
-        category: 'インターネット附随サービス',
-        categoryCode: '734101',
-        confidence: 0.94,
-        source: 'learned',
-        frequency: 156,
-        minAmount: 50000,
-        maxAmount: 500000,
-        supplierHints: ['Amazon', 'AWS']
-      },
-      {
-        id: '2',
-        keywords: ['システム', '開発', '委託', 'IT', 'ソフトウェア'],
-        category: '情報サービス',
-        categoryCode: '733101',
-        confidence: 0.92,
-        source: 'learned',
-        frequency: 244,
-        minAmount: 100000,
-        maxAmount: 2000000,
-        supplierHints: ['システム', 'IT']
-      },
-      {
-        id: '3',
-        keywords: ['iPhone', 'スマートフォン', 'Apple', '携帯'],
-        category: '電子計算機・同附属装置',
-        categoryCode: '821101',
-        confidence: 0.89,
-        source: 'learned',
-        frequency: 89,
-        minAmount: 80000,
-        maxAmount: 200000,
-        supplierHints: ['Apple', 'ソフトバンク']
-      }
-    ];
+  const initialDictionary: DictionaryEntry[] = [];
     setDictionary(initialDictionary);
   }, []);
 
