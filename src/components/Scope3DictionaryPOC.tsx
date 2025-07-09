@@ -784,197 +784,191 @@ const Scope3DictionaryPOC = () => {
 
           {/* テストタブ（実装修正版） */}
           {activeTab === 'test' && (
-            <div className="p-8">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="space-y-6">
-                <div>
-  <h2 className="text-xl font-semibold text-gray-900 mb-4">テストデータアップロード</h2>
-  <div 
-    className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-400 transition-colors cursor-pointer"
-    onClick={() => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.xlsx,.xls,.csv';
-      input.onchange = (e) => {
-        const file = (e.target as HTMLInputElement).files?.[0];
-        if (file) {
-          setTestFile(file);
-          console.log('✅ テストファイル選択:', file.name);
-        }
-      };
-      input.click();
-    }}
-  >
-    <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                          {testFile ? (
-                            <div className="space-y-2">
-                              <span className="text-lg font-medium text-green-600">
-                                ✅ {testFile.name}
-                              </span>
-                              <p className="text-sm text-green-700">
-                                ファイルサイズ: {(testFile.size / 1024 / 1024).toFixed(2)} MB
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                クリックして別のファイルを選択
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="space-y-2">
-                              <span className="text-lg font-medium text-gray-900">
-                                未分類の調達データ
-                              </span>
-                              <p className="text-gray-500">
-                                品目名・仕入先名・金額が含まれたCSV/Excelファイル
-                              </p>
-                              <p className="text-sm text-green-600">
-                                対応形式: .xlsx, .xls, .csv
-                              </p>
-                            </div>
-                          )}
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={processTestFile}
-                    disabled={isTesting || !testFile || dictionary.length === 0}
-                    className={`w-full py-3 px-6 rounded-lg font-medium transition-all ${
-                      isTesting || !testFile || dictionary.length === 0
-                        ? 'bg-gray-400 text-white cursor-not-allowed'
-                        : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-center space-x-2">
-                      <Zap className="w-5 h-5" />
-                      <span>
-                        {isTesting ? 'マッチング中...' : 
-                         !testFile ? 'ファイルを選択してください' :
-                         dictionary.length === 0 ? '辞書が空です' : 
-                         'マッチング実行'}
-                      </span>
-                    </div>
-                  </button>
-
-                  {isTesting && (
-                    <div className="bg-green-50 rounded-lg p-4">
-                      <div className="flex justify-between text-sm text-green-600 mb-2">
-                        <span>{testStep}</span>
-                        <span>{testProgress.toFixed(0)}%</span>
-                      </div>
-                      <div className="w-full bg-green-200 rounded-full h-2">
-                        <div 
-                          className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${testProgress}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <button
-                    onClick={runDemo}
-                    className="w-full bg-gray-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-gray-700 transition-all"
-                  >
-                    <div className="flex items-center justify-center space-x-2">
-                      <BarChart3 className="w-5 h-5" />
-                      <span>デモ表示</span>
-                    </div>
-                  </button>
-                </div>
-
-                <div className="space-y-6">
-                  <h2 className="text-xl font-semibold text-gray-900">テスト結果</h2>
-                  {testResults.length > 0 && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-lg">
-                        <div className="text-2xl font-bold text-green-600">{stats.testMatched}</div>
-                        <div className="text-sm text-green-700">マッチ成功</div>
-                      </div>
-                      <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg">
-                        <div className="text-2xl font-bold text-blue-600">
-                          {stats.testTotal > 0 ? (stats.testMatched / stats.testTotal * 100).toFixed(1) : 0}%
-                        </div>
-                        <div className="text-sm text-blue-700">マッチング精度</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+  <div className="p-8">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">テストデータアップロード</h2>
+          <div 
+            className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-400 transition-colors cursor-pointer"
+            onClick={() => {
+              const input = document.createElement('input');
+              input.type = 'file';
+              input.accept = '.xlsx,.xls,.csv';
+              input.onchange = (e) => {
+                const file = (e.target as HTMLInputElement).files?.[0];
+                if (file) {
+                  setTestFile(file);
+                  console.log('✅ テストファイル選択:', file.name);
+                }
+              };
+              input.click();
+            }}
+          >
+            <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            {testFile ? (
+              <div className="space-y-2">
+                <span className="text-lg font-medium text-green-600">
+                  ✅ {testFile.name}
+                </span>
+                <p className="text-sm text-green-700">
+                  ファイルサイズ: {(testFile.size / 1024 / 1024).toFixed(2)} MB
+                </p>
+                <p className="text-xs text-gray-500">
+                  クリックして別のファイルを選択
+                </p>
               </div>
-
-              {testResults.length > 0 && (
-                <div className="mt-8">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">マッチング結果詳細</h3>
-                  <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
-                    <table className="min-w-full divide-y divide-gray-300">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">品目名</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">仕入先</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">金額</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">予測カテゴリ</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">信頼度</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ステータス</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {testResults.map((result, index) => (
-                          <tr key={index} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                              {result.itemName}
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                              {result.supplierName}
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-900">
-                              ¥{result.amount.toLocaleString()}
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-900">
-                              {result.matchedEntry ? (
-                                <div>
-                                  <div className="font-medium">{result.predictedCategory}</div>
-                                  <div className="text-xs text-gray-500">コード: {result.matchedEntry.categoryCode}</div>
-                                </div>
-                              ) : (
-                                <span className="text-gray-400">未分類</span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4">
-                              {result.matchedEntry && (
-                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                  result.confidence >= 0.8 ? 'bg-green-100 text-green-800' :
-                                  result.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-red-100 text-red-800'
-                                }`}>
-                                  {(result.confidence * 100).toFixed(0)}%
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-900">
-                              {result.matchedEntry ? (
-                                <div className="flex items-center">
-                                  <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-                                  <span className="text-green-600">分類完了</span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center">
-                                  <AlertTriangle className="w-4 h-4 text-red-500 mr-2" />
-                                  <span className="text-red-600">要手動分類</span>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+            ) : (
+              <div className="space-y-2">
+                <span className="text-lg font-medium text-gray-900">
+                  未分類の調達データ
+                </span>
+                <p className="text-gray-500">
+                  品目名・仕入先名・金額が含まれたCSV/Excelファイル
+                </p>
+                <p className="text-sm text-green-600">
+                  対応形式: .xlsx, .xls, .csv
+                </p>
+                <p className="text-xs text-blue-600 font-bold">
+                  👆 クリックしてファイルを選択
+                </p>
+              </div>
+            )}
+          </div>
         </div>
+
+        <button
+          onClick={processTestFile}
+          disabled={isTesting || !testFile || dictionary.length === 0}
+          className={`w-full py-3 px-6 rounded-lg font-medium transition-all ${
+            isTesting || !testFile || dictionary.length === 0
+              ? 'bg-gray-400 text-white cursor-not-allowed'
+              : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
+          }`}
+        >
+          <div className="flex items-center justify-center space-x-2">
+            <Zap className="w-5 h-5" />
+            <span>
+              {isTesting ? 'マッチング中...' : 
+               !testFile ? 'ファイルを選択してください' :
+               dictionary.length === 0 ? '辞書が空です' : 
+               'マッチング実行'}
+            </span>
+          </div>
+        </button>
+
+        {isTesting && (
+          <div className="bg-green-50 rounded-lg p-4">
+            <div className="flex justify-between text-sm text-green-600 mb-2">
+              <span>{testStep}</span>
+              <span>{testProgress.toFixed(0)}%</span>
+            </div>
+            <div className="w-full bg-green-200 rounded-full h-2">
+              <div 
+                className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${testProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={runDemo}
+          className="w-full bg-gray-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-gray-700 transition-all"
+        >
+          <div className="flex items-center justify-center space-x-2">
+            <BarChart3 className="w-5 h-5" />
+            <span>デモ表示</span>
+          </div>
+        </button>
+      </div>
+
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold text-gray-900">テスト結果</h2>
+        {testResults.length > 0 && (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-lg">
+              <div className="text-2xl font-bold text-green-600">{stats.testMatched}</div>
+              <div className="text-sm text-green-700">マッチ成功</div>
+            </div>
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg">
+              <div className="text-2xl font-bold text-blue-600">
+                {stats.testTotal > 0 ? (stats.testMatched / stats.testTotal * 100).toFixed(1) : 0}%
+              </div>
+              <div className="text-sm text-blue-700">マッチング精度</div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
-  );
-};
 
-export default Scope3DictionaryPOC;
+    {testResults.length > 0 && (
+      <div className="mt-8">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">マッチング結果詳細</h3>
+        <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+          <table className="min-w-full divide-y divide-gray-300">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">品目名</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">仕入先</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">金額</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">予測カテゴリ</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">信頼度</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ステータス</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {testResults.map((result, index) => (
+                <tr key={index} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
+                    {result.itemName}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
+                    {result.supplierName}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    ¥{result.amount.toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    {result.matchedEntry ? (
+                      <div>
+                        <div className="font-medium">{result.predictedCategory}</div>
+                        <div className="text-xs text-gray-500">コード: {result.matchedEntry.categoryCode}</div>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">未分類</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
+                    {result.matchedEntry && (
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        result.confidence >= 0.8 ? 'bg-green-100 text-green-800' :
+                        result.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {(result.confidence * 100).toFixed(0)}%
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    {result.matchedEntry ? (
+                      <div className="flex items-center">
+                        <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
+                        <span className="text-green-600">分類完了</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center">
+                        <AlertTriangle className="w-4 h-4 text-red-500 mr-2" />
+                        <span className="text-red-600">要手動分類</span>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )}
+  </div>
+)}
