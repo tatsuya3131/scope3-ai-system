@@ -40,7 +40,15 @@ const Scope3DictionaryPOC = () => {
   const [learningDataCount, setLearningDataCount] = useState(0);
   const [currentStep, setCurrentStep] = useState('');
   const [testStep, setTestStep] = useState('');
-  const [newEntry, setNewEntry] = useState<Partial<DictionaryEntry>>({
+  const [newEntry, setNewEntry] = useState<DictionaryEntry>({
+  id: '',
+  keywords: [],
+  category: '',
+  categoryCode: '',
+  confidence: 0.9,
+  source: 'manual',
+  frequency: 1
+});
     keywords: [],
     category: '',
     categoryCode: '',
@@ -436,8 +444,8 @@ console.log('マッチング結果例:', results.slice(0, 3));
     const entry: DictionaryEntry = {
       id: Date.now().toString(),
       keywords,
-      category: newEntry.category!,
-      categoryCode: newEntry.categoryCode!,
+category: newEntry.category,
+categoryCode: newEntry.categoryCode,
       confidence: 0.90,
       source: 'manual',
       frequency: 1
