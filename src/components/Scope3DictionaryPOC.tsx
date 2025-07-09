@@ -31,11 +31,14 @@ const Scope3DictionaryPOC = () => {
   const [learningFile, setLearningFile] = useState<File | null>(null);
   const [testFile, setTestFile] = useState<File | null>(null);
   const [isLearning, setIsLearning] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   const [learningProgress, setLearningProgress] = useState(0);
+  const [testProgress, setTestProgress] = useState(0);
   const [testResults, setTestResults] = useState<MatchResult[]>([]);
   const [keywordInput, setKeywordInput] = useState('');
   const [learningDataCount, setLearningDataCount] = useState(0);
   const [currentStep, setCurrentStep] = useState('');
+  const [testStep, setTestStep] = useState('');
   const [newEntry, setNewEntry] = useState<Partial<DictionaryEntry>>({
     keywords: [],
     category: '',
@@ -232,6 +235,154 @@ const Scope3DictionaryPOC = () => {
     } finally {
       setIsLearning(false);
     }
+  };
+
+  // 新しいテストファイル処理機能を追加
+  const processTestFile = async () => {
+    if (!testFile) {
+      alert('テストファイルを選択してください');
+      return;
+    }
+
+    if (dictionary.length === 0) {
+      alert('辞書が空です。まず学習データから辞書を生成してください。');
+      return;
+    }
+
+    setIsTesting(true);
+    setTestProgress(0);
+    setTestStep('ファイル読み込み中...');
+    setTestResults([]);
+
+    try {
+      const fileData = await testFile.arrayBuffer();
+      
+      setTestProgress(20);
+      setTestStep('ファイル解析中...');
+
+      // Excel/CSV解析
+      if (typeof window !== 'undefined' && (window as any).XLSX) {
+        const XLSX = (window as any).XLSX;
+        const workbook = XLSX.read(fileData);
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+        setTestProgress(40);
+        setTestStep(`データ解析中... (${rawData.length}行)`);
+
+        // ヘッダーを除外してテストデータを取得
+        const testData = rawData.slice(1).filter((row: any) => 
+          row && row.length >= 3 && row[0] && row[1] // 品目名と仕入先名が必須
+        );
+
+        if (testData.length === 0) {
+          throw new Error('有効なテストデータが見つかりません。品目名・仕入先名・金額の列があることを確認してください。');
+        }
+
+        setTestProgress(60);
+        setTestStep(`マッチング処理中... (${testData.length}件)`);
+
+        // 各行に対してマッチング実行
+        const results: MatchResult[] = [];
+        
+        testData.forEach((row: any, index: number) => {
+          try {
+            const itemName = row[0]?.toString() || '';
+            const supplierName = row[1]?.toString() || '';
+            const amount = row[2] ? parseFloat(row[2].toString()) : 0;
+
+            // マッチング実行
+            const matchResult = findBestMatch(itemName, supplierName, amount);
+            
+            results.push({
+              itemName,
+              supplierName,
+              amount,
+              matchedEntry: matchResult.entry,
+              confidence: matchResult.confidence,
+              predictedCategory: matchResult.entry ? matchResult.entry.category : '未分類'
+            });
+
+            // 進捗更新
+            const progress = 60 + (index / testData.length) * 30;
+            setTestProgress(progress);
+            
+          } catch (error) {
+            console.warn(`行${index + 2}の処理でエラー:`, error);
+          }
+        });
+
+        setTestProgress(100);
+        setTestStep(`✅ テスト完了: ${results.length}件を処理しました`);
+        setTestResults(results);
+
+        console.log(`テスト完了: ${results.length}件を処理`);
+        console.log('マッチング結果例:', results.slice(0, 3));
+
+      } else {
+        throw new Error('Excelライブラリが読み込まれていません。');
+      }
+
+    } catch (error: any) {
+      console.error('Test error:', error);
+      setTestStep(`❌ エラー: ${error.message}`);
+      alert(`テストエラー: ${error.message}`);
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  // マッチング関数を追加
+  const findBestMatch = (itemName: string, supplierName: string, amount: number) => {
+    let bestMatch: DictionaryEntry | null = null;
+    let bestScore = 0;
+
+    // 品目名からキーワード抽出
+    const itemKeywords = extractKeywordsFromText(itemName);
+    const normalizedSupplier = normalizeSupplierName(supplierName);
+
+    dictionary.forEach(entry => {
+      let score = 0;
+
+      // 1. キーワードマッチング（重み40%）
+      const keywordMatches = entry.keywords.filter(keyword => 
+        itemKeywords.some(itemKeyword => 
+          itemKeyword.includes(keyword) || keyword.includes(itemKeyword)
+        )
+      );
+      const keywordScore = keywordMatches.length / Math.max(entry.keywords.length, 1);
+      score += keywordScore * 0.4;
+
+      // 2. 仕入先マッチング（重み30%）
+      if (entry.supplierHints && normalizedSupplier) {
+        const supplierMatches = entry.supplierHints.filter(hint => 
+          normalizedSupplier.includes(hint) || hint.includes(normalizedSupplier)
+        );
+        const supplierScore = supplierMatches.length > 0 ? 1 : 0;
+        score += supplierScore * 0.3;
+      }
+
+      // 3. 金額レンジマッチング（重み20%）
+      if (entry.minAmount && entry.maxAmount && amount > 0) {
+        const amountScore = (amount >= entry.minAmount && amount <= entry.maxAmount) ? 1 : 0;
+        score += amountScore * 0.2;
+      } else if (amount > 0) {
+        score += 0.1; // 金額があるだけで少しスコア加算
+      }
+
+      // 4. 学習データの信頼度を加味（重み10%）
+      score += entry.confidence * 0.1;
+
+      if (score > bestScore && score > 0.3) { // 最低閾値30%
+        bestMatch = entry;
+        bestScore = score;
+      }
+    });
+
+    return {
+      entry: bestMatch,
+      confidence: Math.min(bestScore, 0.95) // 最大95%
+    };
   };
 
   // キーワード抽出関数（高精度版）
@@ -631,7 +782,7 @@ const Scope3DictionaryPOC = () => {
             </div>
           )}
 
-          {/* テストタブ */}
+          {/* テストタブ（実装修正版） */}
           {activeTab === 'test' && (
             <div className="p-8">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -640,22 +791,96 @@ const Scope3DictionaryPOC = () => {
                     <h2 className="text-xl font-semibold text-gray-900 mb-4">テストデータアップロード</h2>
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-400 transition-colors">
                       <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                      <div className="cursor-pointer">
-                        <span className="text-lg font-medium text-gray-900">未分類の調達データ</span>
-                        <p className="text-gray-500 mt-2">
-                          品目名・仕入先名・金額が含まれたCSV/Excelファイル
-                        </p>
+                      <div>
+                        <input
+                          type="file"
+                          accept=".xlsx,.xls,.csv"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setTestFile(file);
+                              console.log('✅ テストファイル選択:', file.name);
+                            }
+                          }}
+                          className="hidden"
+                          id="test-file-input"
+                        />
+                        <label
+                          htmlFor="test-file-input"
+                          className="cursor-pointer block"
+                        >
+                          {testFile ? (
+                            <div className="space-y-2">
+                              <span className="text-lg font-medium text-green-600">
+                                ✅ {testFile.name}
+                              </span>
+                              <p className="text-sm text-green-700">
+                                ファイルサイズ: {(testFile.size / 1024 / 1024).toFixed(2)} MB
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                クリックして別のファイルを選択
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <span className="text-lg font-medium text-gray-900">
+                                未分類の調達データ
+                              </span>
+                              <p className="text-gray-500">
+                                品目名・仕入先名・金額が含まれたCSV/Excelファイル
+                              </p>
+                              <p className="text-sm text-green-600">
+                                対応形式: .xlsx, .xls, .csv
+                              </p>
+                            </div>
+                          )}
+                        </label>
                       </div>
                     </div>
                   </div>
 
                   <button
-                    onClick={runDemo}
-                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 px-6 rounded-lg font-medium hover:from-green-700 hover:to-emerald-700 transition-all"
+                    onClick={processTestFile}
+                    disabled={isTesting || !testFile || dictionary.length === 0}
+                    className={`w-full py-3 px-6 rounded-lg font-medium transition-all ${
+                      isTesting || !testFile || dictionary.length === 0
+                        ? 'bg-gray-400 text-white cursor-not-allowed'
+                        : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
+                    }`}
                   >
                     <div className="flex items-center justify-center space-x-2">
                       <Zap className="w-5 h-5" />
-                      <span>マッチングデモ実行</span>
+                      <span>
+                        {isTesting ? 'マッチング中...' : 
+                         !testFile ? 'ファイルを選択してください' :
+                         dictionary.length === 0 ? '辞書が空です' : 
+                         'マッチング実行'}
+                      </span>
+                    </div>
+                  </button>
+
+                  {isTesting && (
+                    <div className="bg-green-50 rounded-lg p-4">
+                      <div className="flex justify-between text-sm text-green-600 mb-2">
+                        <span>{testStep}</span>
+                        <span>{testProgress.toFixed(0)}%</span>
+                      </div>
+                      <div className="w-full bg-green-200 rounded-full h-2">
+                        <div 
+                          className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${testProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={runDemo}
+                    className="w-full bg-gray-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-gray-700 transition-all"
+                  >
+                    <div className="flex items-center justify-center space-x-2">
+                      <BarChart3 className="w-5 h-5" />
+                      <span>デモ表示</span>
                     </div>
                   </button>
                 </div>
