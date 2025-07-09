@@ -46,8 +46,15 @@ const Scope3DictionaryPOC = () => {
 // 初期辞書データ
 useEffect(() => {
   console.log('useEffect実行: 辞書を空に初期化');
+  // 強制的に空配列で上書き
   setDictionary([]);
-  console.log('初期化完了');
+  console.log('初期化完了: 辞書を空にしました');
+}, []);
+
+// コンポーネントマウント時にも実行
+useEffect(() => {
+  console.log('コンポーネントマウント: 辞書を再度空に');
+  setDictionary([]);
 }, []);
 
   // デモ学習機能
