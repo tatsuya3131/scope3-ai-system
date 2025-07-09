@@ -787,28 +787,25 @@ const Scope3DictionaryPOC = () => {
             <div className="p-8">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="space-y-6">
-                  <div>
-                    <h2 className="text-xl font-semibold text-gray-900 mb-4">テストデータアップロード</h2>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-400 transition-colors">
-                      <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                      <div>
-                        <input
-                          type="file"
-                          accept=".xlsx,.xls,.csv"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              setTestFile(file);
-                              console.log('✅ テストファイル選択:', file.name);
-                            }
-                          }}
-                          className="hidden"
-                          id="test-file-input"
-                        />
-                        <label
-                          htmlFor="test-file-input"
-                          className="cursor-pointer block"
-                        >
+                <div>
+  <h2 className="text-xl font-semibold text-gray-900 mb-4">テストデータアップロード</h2>
+  <div 
+    className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-400 transition-colors cursor-pointer"
+    onClick={() => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.xlsx,.xls,.csv';
+      input.onchange = (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (file) {
+          setTestFile(file);
+          console.log('✅ テストファイル選択:', file.name);
+        }
+      };
+      input.click();
+    }}
+  >
+    <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                           {testFile ? (
                             <div className="space-y-2">
                               <span className="text-lg font-medium text-green-600">
