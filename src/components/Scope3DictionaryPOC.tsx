@@ -298,35 +298,35 @@ const normalizeSupplierName = (supplier: string): string => {
   };
 
   // デモテスト機能
-  const runDemo = () => {
-    const demoResults: MatchResult[] = [
-      {
-        itemName: 'AWS利用料 月額',
-        supplierName: 'Amazon Web Services',
-        amount: 180000,
-        matchedEntry: dictionary[0],
-        confidence: 0.94,
-        predictedCategory: 'インターネット附随サービス'
-      },
-      {
-        itemName: 'システム開発委託',
-        supplierName: '株式会社ITソリューション',
-        amount: 850000,
-        matchedEntry: dictionary[1],
-        confidence: 0.92,
-        predictedCategory: '情報サービス'
-      },
-      {
-        itemName: 'iPhone 15 購入',
-        supplierName: 'Apple Store',
-        amount: 159800,
-        matchedEntry: dictionary[2],
-        confidence: 0.89,
-        predictedCategory: '電子計算機・同附属装置'
-      }
-    ];
-    setTestResults(demoResults);
-  };
+const runDemo = () => {
+  const demoResults: MatchResult[] = [
+    {
+      itemName: 'AWS利用料 月額',
+      supplierName: 'Amazon Web Services',
+      amount: 180000,
+      matchedEntry: null,  // dictionary[0] から null に変更
+      confidence: 0.94,
+      predictedCategory: 'インターネット附随サービス'
+    },
+    {
+      itemName: 'システム開発委託',
+      supplierName: '株式会社ITソリューション',
+      amount: 850000,
+      matchedEntry: null,  // dictionary[1] から null に変更
+      confidence: 0.92,
+      predictedCategory: '情報サービス'
+    },
+    {
+      itemName: 'iPhone 15 購入',
+      supplierName: 'Apple Store',
+      amount: 159800,
+      matchedEntry: null,  // dictionary[2] から null に変更
+      confidence: 0.89,
+      predictedCategory: '電子計算機・同附属装置'
+    }
+  ];
+  setTestResults(demoResults);
+};
 
   // 統計計算
   const stats = {
