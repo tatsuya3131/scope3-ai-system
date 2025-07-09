@@ -195,7 +195,7 @@ const learnFromData = async () => {
               frequency: items.length,
               minAmount,
               maxAmount,
-              supplierHints: [...new Set(suppliers)].slice(0, 4)
+              supplierHints: Array.from(new Set(suppliers)).slice(0, 4)
             });
           }
         } catch (error) {
@@ -257,7 +257,7 @@ const extractKeywordsFromText = (text: string): string[] => {
     !['LTD', 'INC', 'CO'].includes(word.toUpperCase()) // 法人格は除外
   ));
   
-  return [...new Set(keywords)].slice(0, 8); // 重複除去、最大8個
+  return Array.from(new Set(keywords)).slice(0, 8); // 重複除去、最大8個
 };
 
 // 仕入先名正規化関数（改良版）
@@ -366,7 +366,7 @@ const extractKeywordsFromText = (text: string): string[] => {
     !['LTD', 'INC', 'CO'].includes(word.toUpperCase()) // 法人格は除外
   ));
   
-  return [...new Set(keywords)].slice(0, 8); // 重複除去、最大8個
+  return Array.from(new Set(keywords)].slice(0, 8); // 重複除去、最大8個
 };
 
 // 仕入先名正規化関数（改良版）
