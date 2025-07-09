@@ -10,7 +10,7 @@ export default function App({ Component, pageProps }: AppProps) {
         <meta name="description" content="調達データから自動辞書生成・品目分類システム" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        {/* <script src="https://..."> この行を削除 */}
       </Head>
       <Component {...pageProps} />
     </>
