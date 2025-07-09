@@ -43,19 +43,18 @@ const Scope3DictionaryPOC = () => {
     source: 'manual'
   });
 
-// 初期辞書データ
-useEffect(() => {
-  console.log('useEffect実行: 辞書を空に初期化');
-  // 強制的に空配列で上書き
-  setDictionary([]);
-  console.log('初期化完了: 辞書を空にしました');
-}, []);
+  // 初期辞書データ - 完全に空で開始
+  useEffect(() => {
+    console.log('🚀 辞書初期化開始');
+    setDictionary([]);
+    console.log('✅ 辞書を空配列に設定完了');
+  }, []);
 
-// コンポーネントマウント時にも実行
-useEffect(() => {
-  console.log('コンポーネントマウント: 辞書を再度空に');
-  setDictionary([]);
-}, []);
+  // 追加の確認用ログ
+  useEffect(() => {
+    console.log('📊 現在の辞書件数:', dictionary.length);
+    console.log('📋 現在の辞書内容:', dictionary);
+  }, [dictionary]);
 
   // デモ学習機能
 // 実際の学習データから辞書生成（修正版）
