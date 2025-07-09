@@ -350,20 +350,6 @@ console.log('🔍 現在の辞書状態:', dictionary);
 console.log('📊 統計:', stats);
 // キーワード抽出関数（高精度版）
 // 仕入先名正規化関数（改良版）
-const normalizeSupplierName = (supplier: string): string => {
-  if (!supplier) return '';
-  
-  let normalized = supplier
-    .toString()
-    .replace(/\(.*?\)/g, '') // 括弧内削除
-    .replace(/（.*?）/g, '') // 全角括弧内削除
-    .replace(/(株式会社|㈱|有限会社|㈲|合同会社|LLC|Inc|Corp|Ltd|Co\.)/gi, '') // 法人格削除
-    .replace(/[引落]/g, '') // 引落等削除
-    .replace(/\s+/g, '') // スペース削除
-    .trim();
-  
-  return normalized.length >= 2 ? normalized : '';
-};
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* ヘッダー */}
