@@ -1,9 +1,9 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { Upload, Download, Brain, Database, Plus, Trash2, Edit3, CheckCircle, AlertTriangle, BarChart3, FileText, Zap } from 'lucide-react';
+import { Upload, Brain, Database, Plus, CheckCircle, AlertTriangle, BarChart3, FileText, Zap } from 'lucide-react';
 
-// 型定義を完全に明確化
-interface DictionaryEntry {
+// 型定義をシンプルに
+type DictionaryEntry = {
   id: string;
   keywords: string[];
   category: string;
@@ -14,23 +14,16 @@ interface DictionaryEntry {
   minAmount?: number;
   maxAmount?: number;
   supplierHints?: string[];
-}
+};
 
-interface MatchResult {
+type MatchResult = {
   itemName: string;
   supplierName: string;
   amount: number;
   matchedEntry: DictionaryEntry | null;
   confidence: number;
   predictedCategory: string;
-}
-
-// XLSX の型定義
-declare global {
-  interface Window {
-    XLSX: any;
-  }
-}
+};
 
 const Scope3DictionaryPOC = () => {
   const [activeTab, setActiveTab] = useState<'learn' | 'dictionary' | 'test'>('learn');
@@ -47,36 +40,28 @@ const Scope3DictionaryPOC = () => {
   const [currentStep, setCurrentStep] = useState('');
   const [testStep, setTestStep] = useState('');
   
-  // 新規エントリの状態管理を明確化
-  const [newEntryCategory, setNewEntryCategory] = useState('');
-  const [newEntryCategoryCode, setNewEntryCategoryCode] = useState('');
+  // 手動エントリ用の個別state
+  const [manualCategory, setManualCategory] = useState('');
+  const [manualCategoryCode, setManualCategoryCode] = useState('');
 
-  // 初期化処理
+  // 初期化
   useEffect(() => {
-    console.log('🚀 辞書初期化開始');
     setDictionary([]);
-    console.log('✅ 辞書を空配列に設定完了');
   }, []);
 
-  // デバッグ用ログ
-  useEffect(() => {
-    console.log('📊 現在の辞書件数:', dictionary.length);
-    console.log('📋 現在の辞書内容:', dictionary);
-  }, [dictionary]);
-
-  // XLSX の型チェック関数
-  const isXLSXAvailable = (): boolean => {
-    return typeof window !== 'undefined' && window.XLSX;
+  // XLSX チェック
+  const hasXLSX = () => {
+    return typeof window !== 'undefined' && (window as any).XLSX;
   };
 
-  // 実際の学習データから辞書生成
+  // 学習実行
   const learnFromData = async () => {
     if (!learningFile) {
       alert('学習ファイルを選択してください');
       return;
     }
 
-    if (!isXLSXAvailable()) {
+    if (!hasXLSX()) {
       alert('Excelライブラリが読み込まれていません。ページを再読み込みしてください。');
       return;
     }
@@ -86,14 +71,11 @@ const Scope3DictionaryPOC = () => {
     setCurrentStep('ファイル読み込み中...');
 
     try {
-      // ファイル読み込み
       const fileData = await learningFile.arrayBuffer();
-      
       setLearningProgress(10);
       setCurrentStep('Excelファイル解析中...');
 
-      // SheetJSを使用してExcel解析
-      const XLSX = window.XLSX;
+      const XLSX = (window as any).XLSX;
       const workbook = XLSX.read(fileData);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
@@ -101,13 +83,11 @@ const Scope3DictionaryPOC = () => {
       setLearningProgress(25);
       setCurrentStep(`データ解析中... (${rawData.length}行)`);
 
-      // ヘッダーを除外してデータを取得
       const learningData = rawData.slice(1).filter((row: any) => 
         row && row.length >= 4 && row[3] && row[3].toString().includes('環境省DB')
       );
       
       setLearningDataCount(learningData.length);
-      console.log(`有効な学習データ: ${learningData.length}件`);
 
       if (learningData.length === 0) {
         throw new Error('環境省DB排出原単位が設定されたデータが見つかりません。');
@@ -116,8 +96,7 @@ const Scope3DictionaryPOC = () => {
       setLearningProgress(50);
       setCurrentStep('カテゴリ別グループ化中...');
 
-      // カテゴリ別にデータをグループ化
-      const categoryGroups: { [key: string]: any[] } = {};
+      const categoryGroups: Record<string, any[]> = {};
       
       learningData.forEach((row: any, index: number) => {
         try {
@@ -142,47 +121,37 @@ const Scope3DictionaryPOC = () => {
         }
       });
 
-      const categoryCount = Object.keys(categoryGroups).length;
-      console.log(`カテゴリ数: ${categoryCount}`);
-
       setLearningProgress(75);
-      setCurrentStep(`辞書生成中... (${categoryCount}カテゴリ)`);
+      setCurrentStep(`辞書生成中... (${Object.keys(categoryGroups).length}カテゴリ)`);
 
-      // 各カテゴリからキーワードパターンを抽出
       const newEntries: DictionaryEntry[] = [];
       let entryId = Date.now();
 
       for (const [emissionUnit, items] of Object.entries(categoryGroups)) {
-        if (items.length < 2) continue; // 最低2件以上で学習
+        if (items.length < 2) continue;
 
         try {
-          // 1. キーワード抽出
           const allKeywords: string[] = [];
           const suppliers: string[] = [];
           const amounts: number[] = [];
 
           items.forEach(item => {
-            // 品目名からキーワード抽出
-            const itemKeywords = extractKeywordsFromText(item.itemName);
+            const itemKeywords = extractKeywords(item.itemName);
             allKeywords.push(...itemKeywords);
             
-            // 仕入先名を正規化
-            const normalizedSupplier = normalizeSupplierName(item.supplier);
+            const normalizedSupplier = normalizeSupplier(item.supplier);
             if (normalizedSupplier) suppliers.push(normalizedSupplier);
             
-            // 金額収集
             if (item.amount > 0) amounts.push(item.amount);
           });
 
-          // 2. 頻出キーワードを抽出
-          const keywordFreq: { [key: string]: number } = {};
+          const keywordFreq: Record<string, number> = {};
           allKeywords.forEach(keyword => {
             if (keyword && keyword.length >= 2) {
               keywordFreq[keyword] = (keywordFreq[keyword] || 0) + 1;
             }
           });
 
-          // 3. 重要キーワードを選択（頻度ベース）
           const minFreq = Math.max(1, Math.floor(items.length * 0.1));
           const significantKeywords = Object.entries(keywordFreq)
             .filter(([_, freq]) => freq >= minFreq)
@@ -191,24 +160,18 @@ const Scope3DictionaryPOC = () => {
             .map(([keyword]) => keyword);
 
           if (significantKeywords.length > 0) {
-            // 4. カテゴリ名とコード抽出
             const categoryMatch = emissionUnit.match(/(\d{6})\s+(.+?)(?:\s*$)/);
             const categoryCode = categoryMatch ? categoryMatch[1] : '';
             const categoryName = categoryMatch ? 
               categoryMatch[2].trim() : 
               emissionUnit.replace('環境省DB 5産連表', '').trim();
 
-            // 5. 金額レンジ計算
             amounts.sort((a, b) => a - b);
             const minAmount = amounts.length > 0 ? amounts[0] : undefined;
             const maxAmount = amounts.length > 0 ? amounts[amounts.length - 1] : undefined;
+            const confidence = Math.min(0.95, Math.max(0.7, 0.7 + (Math.log10(items.length + 1) / 10)));
 
-            // 6. 信頼度計算（データ件数ベース）
-            const confidence = Math.min(0.95, 
-              Math.max(0.7, 0.7 + (Math.log10(items.length + 1) / 10))
-            );
-
-            const newEntry: DictionaryEntry = {
+            const entry: DictionaryEntry = {
               id: (entryId++).toString(),
               keywords: significantKeywords,
               category: categoryName,
@@ -221,7 +184,7 @@ const Scope3DictionaryPOC = () => {
               supplierHints: Array.from(new Set(suppliers)).slice(0, 4)
             };
 
-            newEntries.push(newEntry);
+            newEntries.push(entry);
           }
         } catch (error) {
           console.warn(`カテゴリ ${emissionUnit} の処理でエラー:`, error);
@@ -230,15 +193,10 @@ const Scope3DictionaryPOC = () => {
 
       setLearningProgress(90);
       setCurrentStep('辞書統合中...');
-
-      // 既存辞書と統合
       setDictionary(prev => [...prev, ...newEntries]);
       
       setLearningProgress(100);
       setCurrentStep(`✅ 学習完了: ${newEntries.length}個の辞書エントリを生成しました`);
-      
-      console.log(`学習完了: ${newEntries.length}個のエントリを生成`);
-      console.log('生成されたエントリ例:', newEntries.slice(0, 3));
       
     } catch (error: any) {
       console.error('Learning error:', error);
@@ -249,7 +207,7 @@ const Scope3DictionaryPOC = () => {
     }
   };
 
-  // テストファイル処理機能
+  // テスト実行
   const processTestFile = async () => {
     if (!testFile) {
       alert('テストファイルを選択してください');
@@ -261,7 +219,7 @@ const Scope3DictionaryPOC = () => {
       return;
     }
 
-    if (!isXLSXAvailable()) {
+    if (!hasXLSX()) {
       alert('Excelライブラリが読み込まれていません。ページを再読み込みしてください。');
       return;
     }
@@ -273,12 +231,10 @@ const Scope3DictionaryPOC = () => {
 
     try {
       const fileData = await testFile.arrayBuffer();
-      
       setTestProgress(20);
       setTestStep('ファイル解析中...');
 
-      // Excel/CSV解析
-      const XLSX = window.XLSX;
+      const XLSX = (window as any).XLSX;
       const workbook = XLSX.read(fileData);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
@@ -286,19 +242,17 @@ const Scope3DictionaryPOC = () => {
       setTestProgress(40);
       setTestStep(`データ解析中... (${rawData.length}行)`);
 
-      // ヘッダーを除外してテストデータを取得
       const testData = rawData.slice(1).filter((row: any) => 
         row && row.length >= 3 && row[0] && row[1]
       );
 
       if (testData.length === 0) {
-        throw new Error('有効なテストデータが見つかりません。品目名・仕入先名・金額の列があることを確認してください。');
+        throw new Error('有効なテストデータが見つかりません。');
       }
 
       setTestProgress(60);
       setTestStep(`マッチング処理中... (${testData.length}件)`);
 
-      // 各行に対してマッチング実行
       const results: MatchResult[] = [];
       
       testData.forEach((row: any, index: number) => {
@@ -307,8 +261,7 @@ const Scope3DictionaryPOC = () => {
           const supplierName = row[1]?.toString() || '';
           const amount = row[2] ? parseFloat(row[2].toString()) : 0;
 
-          // マッチング実行
-          const matchResult = findBestMatch(itemName, supplierName, amount);
+          const matchResult = findMatch(itemName, supplierName, amount);
           
           const result: MatchResult = {
             itemName,
@@ -320,8 +273,6 @@ const Scope3DictionaryPOC = () => {
           };
 
           results.push(result);
-
-          // 進捗更新
           const progress = 60 + (index / testData.length) * 30;
           setTestProgress(progress);
           
@@ -334,9 +285,6 @@ const Scope3DictionaryPOC = () => {
       setTestStep(`✅ テスト完了: ${results.length}件を処理しました`);
       setTestResults(results);
 
-      console.log(`テスト完了: ${results.length}件を処理`);
-      console.log('マッチング結果例:', results.slice(0, 3));
-
     } catch (error: any) {
       console.error('Test error:', error);
       setTestStep(`❌ エラー: ${error.message}`);
@@ -347,18 +295,16 @@ const Scope3DictionaryPOC = () => {
   };
 
   // マッチング関数
-  const findBestMatch = (itemName: string, supplierName: string, amount: number) => {
+  const findMatch = (itemName: string, supplierName: string, amount: number) => {
     let bestMatch: DictionaryEntry | null = null;
     let bestScore = 0;
 
-    // 品目名からキーワード抽出
-    const itemKeywords = extractKeywordsFromText(itemName);
-    const normalizedSupplier = normalizeSupplierName(supplierName);
+    const itemKeywords = extractKeywords(itemName);
+    const normalizedSupplier = normalizeSupplier(supplierName);
 
     dictionary.forEach(entry => {
       let score = 0;
 
-      // 1. キーワードマッチング（重み40%）
       const keywordMatches = entry.keywords.filter(keyword => 
         itemKeywords.some(itemKeyword => 
           itemKeyword.includes(keyword) || keyword.includes(itemKeyword)
@@ -367,7 +313,6 @@ const Scope3DictionaryPOC = () => {
       const keywordScore = keywordMatches.length / Math.max(entry.keywords.length, 1);
       score += keywordScore * 0.4;
 
-      // 2. 仕入先マッチング（重み30%）
       if (entry.supplierHints && normalizedSupplier) {
         const supplierMatches = entry.supplierHints.filter(hint => 
           normalizedSupplier.includes(hint) || hint.includes(normalizedSupplier)
@@ -376,7 +321,6 @@ const Scope3DictionaryPOC = () => {
         score += supplierScore * 0.3;
       }
 
-      // 3. 金額レンジマッチング（重み20%）
       if (entry.minAmount && entry.maxAmount && amount > 0) {
         const amountScore = (amount >= entry.minAmount && amount <= entry.maxAmount) ? 1 : 0;
         score += amountScore * 0.2;
@@ -384,7 +328,6 @@ const Scope3DictionaryPOC = () => {
         score += 0.1;
       }
 
-      // 4. 学習データの信頼度を加味（重み10%）
       score += entry.confidence * 0.1;
 
       if (score > bestScore && score > 0.3) {
@@ -399,8 +342,8 @@ const Scope3DictionaryPOC = () => {
     };
   };
 
-  // キーワード抽出関数
-  const extractKeywordsFromText = (text: string): string[] => {
+  // キーワード抽出
+  const extractKeywords = (text: string): string[] => {
     if (!text) return [];
     
     const normalized = text
@@ -410,7 +353,6 @@ const Scope3DictionaryPOC = () => {
     
     const keywords: string[] = [];
     
-    // 日本語キーワード抽出
     const japaneseWords = normalized.match(/[ァ-ヶー]{2,}|[あ-ん]{2,}|[一-龯]{1,}/g) || [];
     keywords.push(...japaneseWords.filter(word => 
       word.length >= 2 && 
@@ -418,7 +360,6 @@ const Scope3DictionaryPOC = () => {
       !['月分', '年分', '利用', '料金', '費用'].includes(word)
     ));
     
-    // 英数字キーワード抽出
     const alphanumericWords = normalized.match(/[a-zA-Z0-9]{2,}/g) || [];
     keywords.push(...alphanumericWords.filter(word => 
       word.length >= 2 && 
@@ -430,8 +371,8 @@ const Scope3DictionaryPOC = () => {
     return Array.from(new Set(keywords)).slice(0, 8);
   };
 
-  // 仕入先名正規化関数
-  const normalizeSupplierName = (supplier: string): string => {
+  // 仕入先正規化
+  const normalizeSupplier = (supplier: string): string => {
     if (!supplier) return '';
     
     let normalized = supplier
@@ -446,29 +387,29 @@ const Scope3DictionaryPOC = () => {
     return normalized.length >= 2 ? normalized : '';
   };
 
-  // 手動辞書エントリ追加
-  const addDictionaryEntry = () => {
-    if (!newEntryCategory || !newEntryCategoryCode || keywordInput.trim() === '') return;
+  // 手動エントリ追加
+  const addEntry = () => {
+    if (!manualCategory || !manualCategoryCode || keywordInput.trim() === '') return;
 
     const keywords = keywordInput.split(/[,、]/).map(k => k.trim()).filter(k => k);
     
     const entry: DictionaryEntry = {
       id: Date.now().toString(),
       keywords,
-      category: newEntryCategory,
-      categoryCode: newEntryCategoryCode,
+      category: manualCategory,
+      categoryCode: manualCategoryCode,
       confidence: 0.90,
       source: 'manual',
       frequency: 1
     };
 
     setDictionary(prev => [...prev, entry]);
-    setNewEntryCategory('');
-    setNewEntryCategoryCode('');
+    setManualCategory('');
+    setManualCategoryCode('');
     setKeywordInput('');
   };
 
-  // デモテスト機能
+  // デモ実行
   const runDemo = () => {
     const demoResults: MatchResult[] = [
       {
@@ -486,25 +427,16 @@ const Scope3DictionaryPOC = () => {
         matchedEntry: null,
         confidence: 0.92,
         predictedCategory: '情報サービス'
-      },
-      {
-        itemName: 'iPhone 15 購入',
-        supplierName: 'Apple Store',
-        amount: 159800,
-        matchedEntry: null,
-        confidence: 0.89,
-        predictedCategory: '電子計算機・同附属装置'
       }
     ];
     setTestResults(demoResults);
   };
 
-  // 統計計算
+  // 統計
   const stats = {
     totalEntries: dictionary.length,
     learnedEntries: dictionary.filter(d => d.source === 'learned').length,
     manualEntries: dictionary.filter(d => d.source === 'manual').length,
-    avgConfidence: dictionary.length > 0 ? dictionary.reduce((sum, d) => sum + d.confidence, 0) / dictionary.length : 0,
     testMatched: testResults.filter(r => r.matchedEntry).length,
     testTotal: testResults.length
   };
@@ -581,10 +513,7 @@ const Scope3DictionaryPOC = () => {
                           className="hidden"
                           id="learning-file-input"
                         />
-                        <label
-                          htmlFor="learning-file-input"
-                          className="cursor-pointer block"
-                        >
+                        <label htmlFor="learning-file-input" className="cursor-pointer block">
                           {learningFile ? (
                             <div className="space-y-2">
                               <span className="text-lg font-medium text-green-600">
@@ -593,21 +522,13 @@ const Scope3DictionaryPOC = () => {
                               <p className="text-sm text-green-700">
                                 ファイルサイズ: {(learningFile.size / 1024 / 1024).toFixed(2)} MB
                               </p>
-                              <p className="text-xs text-gray-500">
-                                クリックして別のファイルを選択
-                              </p>
+                              <p className="text-xs text-gray-500">クリックして別のファイルを選択</p>
                             </div>
                           ) : (
                             <div className="space-y-2">
-                              <span className="text-lg font-medium text-gray-900">
-                                Excelファイルを選択
-                              </span>
-                              <p className="text-gray-500">
-                                品目名・仕入先名・排出原単位が含まれたExcelファイル
-                              </p>
-                              <p className="text-sm text-blue-600">
-                                対応形式: .xlsx, .xls, .csv
-                              </p>
+                              <span className="text-lg font-medium text-gray-900">Excelファイルを選択</span>
+                              <p className="text-gray-500">品目名・仕入先名・排出原単位が含まれたExcelファイル</p>
+                              <p className="text-sm text-blue-600">対応形式: .xlsx, .xls, .csv</p>
                             </div>
                           )}
                         </label>
@@ -644,20 +565,6 @@ const Scope3DictionaryPOC = () => {
                           style={{ width: `${learningProgress}%` }}
                         />
                       </div>
-                    </div>
-                  )}
-
-                  {learningFile && !isLearning && (
-                    <div className="bg-green-50 rounded-lg p-4">
-                      <div className="flex items-center space-x-2">
-                        <CheckCircle className="w-5 h-5 text-green-600" />
-                        <span className="text-green-700 font-medium">
-                          ファイル準備完了
-                        </span>
-                      </div>
-                      <p className="text-sm text-green-600 mt-1">
-                        「AI学習開始」ボタンをクリックしてください
-                      </p>
                     </div>
                   )}
                 </div>
@@ -708,8 +615,8 @@ const Scope3DictionaryPOC = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-2">カテゴリ名</label>
                       <input
                         type="text"
-                        value={newEntryCategory}
-                        onChange={(e) => setNewEntryCategory(e.target.value)}
+                        value={manualCategory}
+                        onChange={(e) => setManualCategory(e.target.value)}
                         placeholder="例：情報サービス"
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
@@ -719,13 +626,13 @@ const Scope3DictionaryPOC = () => {
                       <div className="flex space-x-2">
                         <input
                           type="text"
-                          value={newEntryCategoryCode}
-                          onChange={(e) => setNewEntryCategoryCode(e.target.value)}
+                          value={manualCategoryCode}
+                          onChange={(e) => setManualCategoryCode(e.target.value)}
                           placeholder="733101"
                           className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                         <button
-                          onClick={addDictionaryEntry}
+                          onClick={addEntry}
                           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                         >
                           <Plus className="w-4 h-4" />
@@ -737,60 +644,64 @@ const Scope3DictionaryPOC = () => {
 
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900 mb-4">辞書エントリ一覧</h2>
-                  <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
-                    <table className="min-w-full divide-y divide-gray-300">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">キーワード</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">分類カテゴリ</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">コード</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">信頼度</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ソース</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {dictionary.map((entry) => (
-                          <tr key={entry.id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 text-sm text-gray-900">
-                              <div className="flex flex-wrap gap-1">
-                                {entry.keywords.slice(0, 3).map((keyword, idx) => (
-                                  <span key={idx} className="inline-flex px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-                                    {keyword}
-                                  </span>
-                                ))}
-                                {entry.keywords.length > 3 && (
-                                  <span className="text-xs text-gray-500">+{entry.keywords.length - 3}個</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
-                              <div className="font-medium">{entry.category}</div>
-                              <div className="text-xs text-gray-500">環境省DB 5産連表 {entry.categoryCode}</div>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-900">
-                              {entry.categoryCode}
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                entry.confidence >= 0.9 ? 'bg-green-100 text-green-800' :
-                                entry.confidence >= 0.7 ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-red-100 text-red-800'
-                              }`}>
-                                {(entry.confidence * 100).toFixed(0)}%
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-900">
-                              <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                                entry.source === 'learned' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
-                              }`}>
-                                {entry.source === 'learned' ? '学習' : '手動'}
-                              </span>
-                            </td>
+                  {dictionary.length > 0 ? (
+                    <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+                      <table className="min-w-full divide-y divide-gray-300">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">キーワード</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">分類カテゴリ</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">コード</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">信頼度</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ソース</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {dictionary.map((entry) => (
+                            <tr key={entry.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 text-sm text-gray-900">
+                                <div className="flex flex-wrap gap-1">
+                                  {entry.keywords.slice(0, 3).map((keyword, idx) => (
+                                    <span key={idx} className="inline-flex px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                                      {keyword}
+                                    </span>
+                                  ))}
+                                  {entry.keywords.length > 3 && (
+                                    <span className="text-xs text-gray-500">+{entry.keywords.length - 3}個</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
+                                <div className="font-medium">{entry.category}</div>
+                                <div className="text-xs text-gray-500">環境省DB 5産連表 {entry.categoryCode}</div>
+                              </td>
+                              <td className="px-6 py-4 text-sm text-gray-900">{entry.categoryCode}</td>
+                              <td className="px-6 py-4">
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                  entry.confidence >= 0.9 ? 'bg-green-100 text-green-800' :
+                                  entry.confidence >= 0.7 ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-red-100 text-red-800'
+                                }`}>
+                                  {(entry.confidence * 100).toFixed(0)}%
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-sm text-gray-900">
+                                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                  entry.source === 'learned' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {entry.source === 'learned' ? '学習' : '手動'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      辞書エントリがありません。学習または手動追加してください。
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -819,10 +730,7 @@ const Scope3DictionaryPOC = () => {
                           className="hidden"
                           id="test-file-input"
                         />
-                        <label
-                          htmlFor="test-file-input"
-                          className="cursor-pointer block"
-                        >
+                        <label htmlFor="test-file-input" className="cursor-pointer block">
                           {testFile ? (
                             <div className="space-y-2">
                               <span className="text-lg font-medium text-green-600">
@@ -831,21 +739,13 @@ const Scope3DictionaryPOC = () => {
                               <p className="text-sm text-green-700">
                                 ファイルサイズ: {(testFile.size / 1024 / 1024).toFixed(2)} MB
                               </p>
-                              <p className="text-xs text-gray-500">
-                                クリックして別のファイルを選択
-                              </p>
+                              <p className="text-xs text-gray-500">クリックして別のファイルを選択</p>
                             </div>
                           ) : (
                             <div className="space-y-2">
-                              <span className="text-lg font-medium text-gray-900">
-                                未分類の調達データ
-                              </span>
-                              <p className="text-gray-500">
-                                品目名・仕入先名・金額が含まれたCSV/Excelファイル
-                              </p>
-                              <p className="text-sm text-green-600">
-                                対応形式: .xlsx, .xls, .csv
-                              </p>
+                              <span className="text-lg font-medium text-gray-900">未分類の調達データ</span>
+                              <p className="text-gray-500">品目名・仕入先名・金額が含まれたCSV/Excelファイル</p>
+                              <p className="text-sm text-green-600">対応形式: .xlsx, .xls, .csv</p>
                             </div>
                           )}
                         </label>
