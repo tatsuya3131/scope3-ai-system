@@ -406,28 +406,136 @@ console.log('📊 統計:', stats);
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900 mb-4">学習データアップロード</h2>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
-                      <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                      <div className="cursor-pointer">
-                        <span className="text-lg font-medium text-gray-900">2023下期実績データ</span>
-                        <p className="text-gray-500 mt-2">
-                          品目名・仕入先名・排出原単位が含まれたExcelファイル
-                        </p>
-                        <p className="text-sm text-blue-600 mt-2">※現在はデモモードです</p>
-                      </div>
-                    </div>
-                  </div>
+                    // 学習タブの部分を以下に置き換えてください
 
-                  <button
-                    onClick={learnFromData}
-                    disabled={isLearning}
-                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-6 rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-400 transition-all"
-                  >
-                    <div className="flex items-center justify-center space-x-2">
-                      <Brain className="w-5 h-5" />
-                      <span>{isLearning ? '学習中...' : 'AI学習デモ開始'}</span>
-                    </div>
-                  </button>
+{/* 学習タブ */}
+{activeTab === 'learn' && (
+  <div className="p-8">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">学習データアップロード</h2>
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
+            <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <div>
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setLearningFile(file);
+                    console.log('✅ ファイル選択:', file.name);
+                  }
+                }}
+                className="hidden"
+                id="learning-file-input"
+              />
+              <label
+                htmlFor="learning-file-input"
+                className="cursor-pointer block"
+              >
+                {learningFile ? (
+                  <div className="space-y-2">
+                    <span className="text-lg font-medium text-green-600">
+                      ✅ {learningFile.name}
+                    </span>
+                    <p className="text-sm text-green-700">
+                      ファイルサイズ: {(learningFile.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      クリックして別のファイルを選択
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <span className="text-lg font-medium text-gray-900">
+                      Excelファイルを選択
+                    </span>
+                    <p className="text-gray-500">
+                      品目名・仕入先名・排出原単位が含まれたExcelファイル
+                    </p>
+                    <p className="text-sm text-blue-600">
+                      対応形式: .xlsx, .xls, .csv
+                    </p>
+                  </div>
+                )}
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={learnFromData}
+          disabled={isLearning || !learningFile}
+          className={`w-full py-3 px-6 rounded-lg font-medium transition-all ${
+            isLearning || !learningFile
+              ? 'bg-gray-400 text-white cursor-not-allowed'
+              : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'
+          }`}
+        >
+          <div className="flex items-center justify-center space-x-2">
+            <Brain className="w-5 h-5" />
+            <span>
+              {isLearning ? '学習中...' : learningFile ? 'AI学習開始' : 'ファイルを選択してください'}
+            </span>
+          </div>
+        </button>
+
+        {isLearning && (
+          <div className="bg-blue-50 rounded-lg p-4">
+            <div className="flex justify-between text-sm text-blue-600 mb-2">
+              <span>{currentStep}</span>
+              <span>{learningProgress.toFixed(0)}%</span>
+            </div>
+            <div className="w-full bg-blue-200 rounded-full h-2">
+              <div 
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${learningProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {learningFile && !isLearning && (
+          <div className="bg-green-50 rounded-lg p-4">
+            <div className="flex items-center space-x-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              <span className="text-green-700 font-medium">
+                ファイル準備完了
+              </span>
+            </div>
+            <p className="text-sm text-green-600 mt-1">
+              「AI学習開始」ボタンをクリックしてください
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold text-gray-900">学習統計</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg">
+            <div className="text-2xl font-bold text-blue-600">{stats.learnedEntries}</div>
+            <div className="text-sm text-blue-700">学習済み辞書</div>
+          </div>
+          <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-lg">
+            <div className="text-2xl font-bold text-green-600">{stats.manualEntries}</div>
+            <div className="text-sm text-green-700">手動登録辞書</div>
+          </div>
+          <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-lg">
+            <div className="text-2xl font-bold text-purple-600">{dictionary.length}</div>
+            <div className="text-sm text-purple-700">総カテゴリ数</div>
+          </div>
+          <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-lg">
+            <div className="text-2xl font-bold text-orange-600">{learningDataCount.toLocaleString()}</div>
+            <div className="text-sm text-orange-700">学習データ件数</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
                   {isLearning && (
                     <div className="bg-blue-50 rounded-lg p-4">
