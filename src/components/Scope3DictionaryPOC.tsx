@@ -2,45 +2,22 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, Brain, Database, Plus, CheckCircle, AlertTriangle, BarChart3, FileText, Zap } from 'lucide-react';
 
-// 型定義をシンプルに
-type DictionaryEntry = {
-  id: string;
-  keywords: string[];
-  category: string;
-  categoryCode: string;
-  confidence: number;
-  source: 'manual' | 'learned';
-  frequency: number;
-  minAmount?: number;
-  maxAmount?: number;
-  supplierHints?: string[];
-};
-
-type MatchResult = {
-  itemName: string;
-  supplierName: string;
-  amount: number;
-  matchedEntry: DictionaryEntry | null;
-  confidence: number;
-  predictedCategory: string;
-};
-
 const Scope3DictionaryPOC = () => {
   const [activeTab, setActiveTab] = useState<'learn' | 'dictionary' | 'test'>('learn');
-  const [dictionary, setDictionary] = useState<DictionaryEntry[]>([]);
+  const [dictionary, setDictionary] = useState<any[]>([]);
   const [learningFile, setLearningFile] = useState<File | null>(null);
   const [testFile, setTestFile] = useState<File | null>(null);
   const [isLearning, setIsLearning] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [learningProgress, setLearningProgress] = useState(0);
   const [testProgress, setTestProgress] = useState(0);
-  const [testResults, setTestResults] = useState<MatchResult[]>([]);
+  const [testResults, setTestResults] = useState<any[]>([]);
   const [keywordInput, setKeywordInput] = useState('');
   const [learningDataCount, setLearningDataCount] = useState(0);
   const [currentStep, setCurrentStep] = useState('');
   const [testStep, setTestStep] = useState('');
   
-  // 手動エントリ用の個別state
+  // 手動エントリ用
   const [manualCategory, setManualCategory] = useState('');
   const [manualCategoryCode, setManualCategoryCode] = useState('');
 
@@ -96,7 +73,7 @@ const Scope3DictionaryPOC = () => {
       setLearningProgress(50);
       setCurrentStep('カテゴリ別グループ化中...');
 
-      const categoryGroups: Record<string, any[]> = {};
+      const categoryGroups: any = {};
       
       learningData.forEach((row: any, index: number) => {
         try {
@@ -124,18 +101,19 @@ const Scope3DictionaryPOC = () => {
       setLearningProgress(75);
       setCurrentStep(`辞書生成中... (${Object.keys(categoryGroups).length}カテゴリ)`);
 
-      const newEntries: DictionaryEntry[] = [];
+      const newEntries: any[] = [];
       let entryId = Date.now();
 
       for (const [emissionUnit, items] of Object.entries(categoryGroups)) {
-        if (items.length < 2) continue;
+        const itemArray = items as any[];
+        if (itemArray.length < 2) continue;
 
         try {
           const allKeywords: string[] = [];
           const suppliers: string[] = [];
           const amounts: number[] = [];
 
-          items.forEach(item => {
+          itemArray.forEach(item => {
             const itemKeywords = extractKeywords(item.itemName);
             allKeywords.push(...itemKeywords);
             
@@ -145,17 +123,17 @@ const Scope3DictionaryPOC = () => {
             if (item.amount > 0) amounts.push(item.amount);
           });
 
-          const keywordFreq: Record<string, number> = {};
+          const keywordFreq: any = {};
           allKeywords.forEach(keyword => {
             if (keyword && keyword.length >= 2) {
               keywordFreq[keyword] = (keywordFreq[keyword] || 0) + 1;
             }
           });
 
-          const minFreq = Math.max(1, Math.floor(items.length * 0.1));
+          const minFreq = Math.max(1, Math.floor(itemArray.length * 0.1));
           const significantKeywords = Object.entries(keywordFreq)
-            .filter(([_, freq]) => freq >= minFreq)
-            .sort((a, b) => b[1] - a[1])
+            .filter(([_, freq]) => (freq as number) >= minFreq)
+            .sort((a, b) => (b[1] as number) - (a[1] as number))
             .slice(0, 6)
             .map(([keyword]) => keyword);
 
@@ -169,16 +147,16 @@ const Scope3DictionaryPOC = () => {
             amounts.sort((a, b) => a - b);
             const minAmount = amounts.length > 0 ? amounts[0] : undefined;
             const maxAmount = amounts.length > 0 ? amounts[amounts.length - 1] : undefined;
-            const confidence = Math.min(0.95, Math.max(0.7, 0.7 + (Math.log10(items.length + 1) / 10)));
+            const confidence = Math.min(0.95, Math.max(0.7, 0.7 + (Math.log10(itemArray.length + 1) / 10)));
 
-            const entry: DictionaryEntry = {
+            const entry = {
               id: (entryId++).toString(),
               keywords: significantKeywords,
               category: categoryName,
               categoryCode,
               confidence,
               source: 'learned',
-              frequency: items.length,
+              frequency: itemArray.length,
               minAmount,
               maxAmount,
               supplierHints: Array.from(new Set(suppliers)).slice(0, 4)
@@ -253,7 +231,7 @@ const Scope3DictionaryPOC = () => {
       setTestProgress(60);
       setTestStep(`マッチング処理中... (${testData.length}件)`);
 
-      const results: MatchResult[] = [];
+      const results: any[] = [];
       
       testData.forEach((row: any, index: number) => {
         try {
@@ -263,7 +241,7 @@ const Scope3DictionaryPOC = () => {
 
           const matchResult = findMatch(itemName, supplierName, amount);
           
-          const result: MatchResult = {
+          const result = {
             itemName,
             supplierName,
             amount,
@@ -296,7 +274,7 @@ const Scope3DictionaryPOC = () => {
 
   // マッチング関数
   const findMatch = (itemName: string, supplierName: string, amount: number) => {
-    let bestMatch: DictionaryEntry | null = null;
+    let bestMatch: any = null;
     let bestScore = 0;
 
     const itemKeywords = extractKeywords(itemName);
@@ -305,7 +283,7 @@ const Scope3DictionaryPOC = () => {
     dictionary.forEach(entry => {
       let score = 0;
 
-      const keywordMatches = entry.keywords.filter(keyword => 
+      const keywordMatches = entry.keywords.filter((keyword: string) => 
         itemKeywords.some(itemKeyword => 
           itemKeyword.includes(keyword) || keyword.includes(itemKeyword)
         )
@@ -314,7 +292,7 @@ const Scope3DictionaryPOC = () => {
       score += keywordScore * 0.4;
 
       if (entry.supplierHints && normalizedSupplier) {
-        const supplierMatches = entry.supplierHints.filter(hint => 
+        const supplierMatches = entry.supplierHints.filter((hint: string) => 
           normalizedSupplier.includes(hint) || hint.includes(normalizedSupplier)
         );
         const supplierScore = supplierMatches.length > 0 ? 1 : 0;
@@ -393,7 +371,7 @@ const Scope3DictionaryPOC = () => {
 
     const keywords = keywordInput.split(/[,、]/).map(k => k.trim()).filter(k => k);
     
-    const entry: DictionaryEntry = {
+    const entry = {
       id: Date.now().toString(),
       keywords,
       category: manualCategory,
@@ -411,7 +389,7 @@ const Scope3DictionaryPOC = () => {
 
   // デモ実行
   const runDemo = () => {
-    const demoResults: MatchResult[] = [
+    const demoResults = [
       {
         itemName: 'AWS利用料 月額',
         supplierName: 'Amazon Web Services',
@@ -661,7 +639,7 @@ const Scope3DictionaryPOC = () => {
                             <tr key={entry.id} className="hover:bg-gray-50">
                               <td className="px-6 py-4 text-sm text-gray-900">
                                 <div className="flex flex-wrap gap-1">
-                                  {entry.keywords.slice(0, 3).map((keyword, idx) => (
+                                  {entry.keywords.slice(0, 3).map((keyword: string, idx: number) => (
                                     <span key={idx} className="inline-flex px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
                                       {keyword}
                                     </span>
